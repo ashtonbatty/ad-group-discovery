@@ -49,4 +49,46 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
         $actual   = @($script:sel.Name | Sort-Object)
         $actual | Should -Be $expected
     }
+
+    It 'assigns each surfaced group its expected confidence band' {
+        foreach ($name in $script:expectedBand.Keys) {
+            $script:byName[$name].Confidence | Should -Be $script:expectedBand[$name] -Because "band for '$name'"
+        }
+    }
+
+    It 'promotes Global Logistics Stewards to Medium via nested-group closure' {
+        $g = $script:byName['Global Logistics Stewards']
+        $g.Confidence | Should -Be 'Medium'
+        @($g.Reasons | Where-Object { $_.Pattern -eq 'NestedVendorGroup' }).Count | Should -BeGreaterThan 0
+    }
+
+    It 'marks the known group Confirmed with Source=Known' {
+        $g = $script:byName['Project Atlas Team']
+        $g.Confidence | Should -Be 'Confirmed'
+        $g.Source     | Should -Be 'Known'
+    }
+
+    It 'resolves a cross-domain foreign-SID member to a vendor user' {
+        $g = $script:byName['NWT Application Owners']
+        $values = @($g.Reasons | Where-Object { $_.Pattern -eq 'MemberVendorUser' } | ForEach-Object { $_.Value })
+        $values | Should -Contain 'Omar Haddad'
+    }
+
+    It 'matches a vendor user mentioned in a group description' {
+        $g = $script:byName['Logistics Integration RW']
+        $du = @($g.Reasons | Where-Object { $_.Pattern -eq 'DescriptionUser' })
+        $du.Count | Should -BeGreaterThan 0
+        ($du | ForEach-Object { $_.Value }) -join ' ' | Should -Match 'jbrooks'
+    }
+
+    It 'flags vendor members with a leading asterisk in the resolved member list' {
+        $g = $script:byName['Northwind Traders Admins']
+        $g.Members | Should -Contain '*Maria Hale'
+    }
+
+    It 'does not surface any decoy or excluded group' {
+        foreach ($name in $script:absent) {
+            $script:sel.Name | Should -Not -Contain $name -Because "'$name' must not surface"
+        }
+    }
 }
