@@ -1,0 +1,5 @@
+"Domain","Server","Name"
+"corp.globex.com","dc01.corp.globex.com","Globex Corp HQ"
+"emea.globex.com","dc01.emea.globex.com","Globex EMEA"
+"apac.globex.local","dc01.apac.globex.local","Globex APAC"
+"dmz.globex.net","dc01.dmz.globex.net","Globex DMZ"
