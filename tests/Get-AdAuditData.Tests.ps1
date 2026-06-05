@@ -45,4 +45,13 @@ Describe 'Get-AdAuditData' {
         $data = Get-AdAuditData -InputData $input
         $data.FailedDomains | Should -Contain 'dead.example.com'
     }
+    It 'skips a SamAccountName containing filter-injection characters and warns' {
+        $input = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName="evil') -or (cn=*"; DisplayName='X' })
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdAuditData -InputData $input
+        $data.VendorUsers.Count | Should -Be 0
+        ($data.Warnings -join "`n") | Should -Match 'suspicious'
+    }
 }

@@ -40,8 +40,13 @@ function Get-AdAuditData {
         foreach ($csvUser in $InputData.Users) {
             $sam = $csvUser.SamAccountName
             if ([string]::IsNullOrWhiteSpace($sam) -or $sidSeen.ContainsKey($sam.ToLower())) { continue }
+            if ($sam -match "['()*\\/]") {
+                $warnings += "Skipping user with suspicious SamAccountName '$sam'"
+                continue
+            }
             try {
-                $u = Get-ADUser @common -Filter "SamAccountName -eq '$sam'" -Properties $userProps
+                $samFilterValue = $sam
+                $u = Get-ADUser @common -Filter { SamAccountName -eq $samFilterValue } -Properties $userProps
             } catch {
                 $warnings += "Lookup failed for user '$sam' in '$($d.Domain)': $($_.Exception.Message)"
                 continue
