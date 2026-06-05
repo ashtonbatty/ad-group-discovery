@@ -1,0 +1,3 @@
+Domain,Server,Name
+corp.example.com,dc1.corp.example.com,Corp
+sub.example.com,,Sub

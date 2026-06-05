@@ -11,7 +11,7 @@ function Write-HtmlReport {
     if (-not ('System.Web.HttpUtility' -as [type])) {
         function Get-HtmlEncoded([string]$Text) {
             if ($null -eq $Text) { return '' }
-            $Text.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('"','&quot;')
+            $Text.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('"','&quot;').Replace("'",'&#39;')
         }
     }
 

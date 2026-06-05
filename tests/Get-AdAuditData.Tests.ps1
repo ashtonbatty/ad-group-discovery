@@ -26,11 +26,11 @@ Describe 'Get-AdAuditData' {
         }
     }
     It 'loads groups and resolves vendor users for a domain' {
-        $input = [pscustomobject]@{
+        $auditInput = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdAuditData -InputData $input
+        $data = Get-AdAuditData -InputData $auditInput
         $data.Groups[0].Name | Should -Be 'Acme Admins'
         $data.Groups[0].Domain | Should -Be 'corp.example.com'
         $data.VendorUsers[0].Tokens | Should -Contain 'John Smith'
@@ -38,19 +38,19 @@ Describe 'Get-AdAuditData' {
     }
     It 'records a failed domain and continues' {
         Mock -CommandName Get-ADGroup -MockWith { throw 'server down' }
-        $input = [pscustomobject]@{
+        $auditInput = [pscustomobject]@{
             Users   = @()
             Domains = @([pscustomobject]@{ Domain='dead.example.com'; Server=$null; Name=$null })
         }
-        $data = Get-AdAuditData -InputData $input
+        $data = Get-AdAuditData -InputData $auditInput
         $data.FailedDomains | Should -Contain 'dead.example.com'
     }
     It 'skips a SamAccountName containing filter-injection characters and warns' {
-        $input = [pscustomobject]@{
+        $auditInput = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName="evil') -or (cn=*"; DisplayName='X' })
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdAuditData -InputData $input
+        $data = Get-AdAuditData -InputData $auditInput
         $data.VendorUsers.Count | Should -Be 0
         ($data.Warnings -join "`n") | Should -Match 'suspicious'
     }

@@ -5,8 +5,8 @@ Get-ChildItem -Path (Join-Path $root 'src') -Recurse -Filter '*.ps1' -ErrorActio
 
 # Stub AD cmdlets so Pester Mock can intercept them on non-Windows / no-AD test runners.
 if (-not (Get-Command Get-ADGroup  -ErrorAction SilentlyContinue)) {
-    function Get-ADGroup  { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$Args) }
+    function Get-ADGroup  { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$RemainingArgs) }
 }
 if (-not (Get-Command Get-ADUser   -ErrorAction SilentlyContinue)) {
-    function Get-ADUser   { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$Args) }
+    function Get-ADUser   { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$RemainingArgs) }
 }
