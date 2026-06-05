@@ -117,3 +117,62 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
         $s.Name  | Should -Contain 'Northwind Traders Admins'
     }
 }
+
+Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
+    BeforeAll {
+        $script:outDir = Join-Path ([System.IO.Path]::GetTempPath()) ("fx_" + [guid]::NewGuid())
+        Mock -CommandName Get-AdAuditData -MockWith {
+            $d = Get-FixtureAuditData -FixtureDir $script:fixtureDir
+            [pscustomobject]@{
+                Groups        = $d.Groups
+                VendorUsers   = $d.VendorUsers
+                DnIndex       = $d.DnIndex
+                FailedDomains = @()
+                Warnings      = @()
+            }
+        }
+        $inDir = Join-Path $script:fixtureDir 'audit-input'
+        Invoke-AdVendorGroupAudit `
+            -UsersCsv        (Join-Path $inDir 'users.csv') `
+            -DomainsCsv      (Join-Path $inDir 'domains.csv') `
+            -KeywordsCsv     (Join-Path $inDir 'keywords.csv') `
+            -KnownGroupsCsv  (Join-Path $inDir 'known.csv') `
+            -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv') `
+            -OutputDirectory $script:outDir -Formats @('Csv','Html') | Out-Null
+
+        $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-audit.csv'))
+        $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-audit.html') -Raw
+    }
+    AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
+
+    It 'writes a CSV with one row per surfaced group' {
+        $script:csvRows.Count | Should -Be 10
+    }
+
+    It 'records the closure reason in the CSV' {
+        $row = $script:csvRows | Where-Object { $_.Name -eq 'Global Logistics Stewards' }
+        $row.MatchReasons | Should -Match 'NestedVendorGroup'
+    }
+
+    It 'records the known group as Confirmed in the CSV' {
+        $row = $script:csvRows | Where-Object { $_.Name -eq 'Project Atlas Team' }
+        $row.Confidence | Should -Be 'Confirmed'
+    }
+
+    It 'excludes decoy groups from the CSV' {
+        $script:csvRows.Name | Should -Not -Contain 'Contoso Service Desk'
+    }
+
+    It 'flags vendor members with an asterisk in the CSV' {
+        $row = $script:csvRows | Where-Object { $_.Name -eq 'Northwind Traders Admins' }
+        $row.Members | Should -Match '\*Maria Hale'
+    }
+
+    It 'writes an HTML report containing the groups and a header per result domain' {
+        $script:html | Should -Match '<html'
+        $script:html | Should -Match 'Northwind Traders Admins'
+        foreach ($dom in @('corp.globex.com','emea.globex.com','apac.globex.local','dmz.globex.net')) {
+            $script:html | Should -Match ([regex]::Escape($dom))
+        }
+    }
+}
