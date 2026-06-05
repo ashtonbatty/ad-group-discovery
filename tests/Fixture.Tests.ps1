@@ -91,4 +91,29 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
             $script:sel.Name | Should -Not -Contain $name -Because "'$name' must not surface"
         }
     }
+
+    It 'MinimumConfidence High keeps Confirmed+High and drops Medium' {
+        $high = Select-AuditResults -Results $script:cand -MinimumConfidence 'High'
+        $high.Count | Should -Be 9
+        $high.Name  | Should -Not -Contain 'Global Logistics Stewards'   # Medium -> dropped
+        $high.Name  | Should -Contain 'Project Atlas Team'               # Confirmed -> kept
+    }
+
+    It 'SecurityGroupsOnly drops the distribution group (Northwind Support)' {
+        $secGroups = @($script:data.Groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' })
+        $auditInput = $script:data.InputData
+        $knownKeys = @{}
+        foreach ($k in $auditInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+        $excludeKeys = @{}
+        foreach ($e in $auditInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+
+        $c = Find-CandidateGroups -Groups $secGroups -Keywords $auditInput.Keywords `
+            -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
+        $c = Expand-VendorGroupClosure -Results $c
+        $s = Select-AuditResults -Results $c
+
+        $s.Count | Should -Be 9
+        $s.Name  | Should -Not -Contain 'Northwind Support'
+        $s.Name  | Should -Contain 'Northwind Traders Admins'
+    }
 }
