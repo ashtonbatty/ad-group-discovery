@@ -18,9 +18,9 @@ function Invoke-AdVendorGroupAudit {
         -KnownGroupsCsv $KnownGroupsCsv -ExcludeGroupsCsv $ExcludeGroupsCsv
 
     $knownKeys = @{}
-    foreach ($k in $inputData.KnownGroups) { $knownKeys[("{0}|{1}" -f $k.Domain, $k.Identity).ToLower()] = $true }
+    foreach ($k in $inputData.KnownGroups) { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
     $excludeKeys = @{}
-    foreach ($e in $inputData.ExcludeGroups) { $excludeKeys[("{0}|{1}" -f $e.Domain, $e.Identity).ToLower()] = $true }
+    foreach ($e in $inputData.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
 
     if (-not (Test-Path -LiteralPath $OutputDirectory)) {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
@@ -36,8 +36,8 @@ function Invoke-AdVendorGroupAudit {
     $candidates = Expand-VendorGroupClosure -Results $candidates -MaxIterations $MaxIterations
     $selected   = Select-AuditResults -Results $candidates -MinimumConfidence $MinimumConfidence
     $selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
-    $selected   = @($selected | Sort-Object @{ Expression = {
-        switch ($_.Confidence) { 'Confirmed' {0} 'High' {1} 'Medium' {2} 'Low' {3} default {4} } } }, Domain, Name)
+    $rank       = Get-ConfidenceRank
+    $selected   = @($selected | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Domain, Name)
 
     $summary = [pscustomobject]@{
         TotalGroups   = @($selected).Count

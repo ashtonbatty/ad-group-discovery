@@ -2,13 +2,15 @@ function Write-HtmlReport {
     [CmdletBinding()]
     param([object[]]$Results, [object]$Summary, [Parameter(Mandatory)][string]$Path)
 
-    function Get-HtmlEncoded([string]$Text) {
-        if ($null -eq $Text) { return '' }
-        [System.Web.HttpUtility]::HtmlEncode($Text)
-    }
-    # System.Web may not be loaded by default; fall back to manual escaping.
+    # System.Web may not be loaded by default; prefer HttpUtility, else fall back to
+    # manual escaping. Resolve which path to use once, then define the helper once.
     try { Add-Type -AssemblyName System.Web -ErrorAction Stop } catch { $null = $_ }
-    if (-not ('System.Web.HttpUtility' -as [type])) {
+    if ('System.Web.HttpUtility' -as [type]) {
+        function Get-HtmlEncoded([string]$Text) {
+            if ($null -eq $Text) { return '' }
+            [System.Web.HttpUtility]::HtmlEncode($Text)
+        }
+    } else {
         function Get-HtmlEncoded([string]$Text) {
             if ($null -eq $Text) { return '' }
             $Text.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('"','&quot;').Replace("'",'&#39;')
@@ -44,12 +46,12 @@ th{background:#f2f2f2}
     }
     [void]$sb.AppendLine('</div>')
 
+    $rank = Get-ConfidenceRank
     $byDomain = $Results | Group-Object Domain
     foreach ($dg in $byDomain) {
         [void]$sb.AppendLine("<h2>$(Get-HtmlEncoded $dg.Name)</h2>")
         [void]$sb.AppendLine('<table><tr><th>Confidence</th><th>Name</th><th>Owner</th><th>Members</th><th>Member Of</th><th>Description</th><th>Match Reasons</th><th>Scope/Category</th></tr>')
-        $ordered = $dg.Group | Sort-Object @{ Expression = {
-            switch ($_.Confidence) { 'Confirmed' {0} 'High' {1} 'Medium' {2} 'Low' {3} default {4} } } }, Name
+        $ordered = $dg.Group | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Name
         foreach ($r in $ordered) {
             $reasons = (@($r.Reasons) | ForEach-Object { "<span class='reason'>$(Get-HtmlEncoded "$($_.Pattern): $($_.Value)")</span>" }) -join ' '
             [void]$sb.AppendLine("<tr class='$($r.Confidence)'>")

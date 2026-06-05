@@ -1,7 +1,8 @@
 function Select-AuditResults {
     [CmdletBinding()]
     param([object[]]$Results, [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low')
-    $rank = @{ None = 0; Low = 1; Medium = 2; High = 3; Confirmed = 4 }
+    $rank = Get-ConfidenceRank
     $min  = $rank[$MinimumConfidence]
-    @($Results | Where-Object { $rank[$_.Confidence] -ge 1 -and $rank[$_.Confidence] -ge $min })
+    # $min is always >= 1 (ValidateSet excludes None), so this also drops None.
+    @($Results | Where-Object { $rank[$_.Confidence] -ge $min })
 }

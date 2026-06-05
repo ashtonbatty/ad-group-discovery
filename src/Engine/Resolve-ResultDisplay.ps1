@@ -1,23 +1,24 @@
 function Resolve-ResultDisplay {
     [CmdletBinding()]
     param([object[]]$Results, [hashtable]$DnIndex, [object[]]$VendorUsers)
+    $vendorIndex = New-VendorPrincipalIndex -VendorUsers $VendorUsers
     foreach ($r in $Results) {
         $owner = Resolve-DisplayName -Identity $r.ManagedBy -DnIndex $DnIndex
-        $members = @()
+        $members = New-Object System.Collections.Generic.List[string]
         foreach ($m in @($r.Member)) {
             if ([string]::IsNullOrWhiteSpace($m)) { continue }
             $name = Resolve-DisplayName -Identity $m -DnIndex $DnIndex
-            $isVendor = [bool](Resolve-VendorPrincipal -Identity $m -VendorUsers $VendorUsers)
-            if ($isVendor) { $members += "*$name" } else { $members += $name }
+            $isVendor = [bool](Resolve-VendorPrincipal -Identity $m -VendorUsers $VendorUsers -Index $vendorIndex)
+            if ($isVendor) { $members.Add("*$name") } else { $members.Add($name) }
         }
-        $memberOf = @()
+        $memberOf = New-Object System.Collections.Generic.List[string]
         foreach ($mo in @($r.MemberOf)) {
             if ([string]::IsNullOrWhiteSpace($mo)) { continue }
-            $memberOf += Resolve-DisplayName -Identity $mo -DnIndex $DnIndex
+            $memberOf.Add((Resolve-DisplayName -Identity $mo -DnIndex $DnIndex))
         }
         $r | Add-Member -NotePropertyName Owner -NotePropertyValue $owner -Force
-        $r | Add-Member -NotePropertyName Members -NotePropertyValue $members -Force
-        $r | Add-Member -NotePropertyName MemberOfDisplay -NotePropertyValue $memberOf -Force
+        $r | Add-Member -NotePropertyName Members -NotePropertyValue $members.ToArray() -Force
+        $r | Add-Member -NotePropertyName MemberOfDisplay -NotePropertyValue $memberOf.ToArray() -Force
     }
     ,$Results
 }

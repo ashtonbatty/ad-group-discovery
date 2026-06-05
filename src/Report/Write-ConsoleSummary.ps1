@@ -22,8 +22,7 @@ function Write-ConsoleSummary {
     foreach ($r in $Results) {
         foreach ($reason in @($r.Reasons)) {
             if ($null -eq $reason) { continue }
-            if (-not $reasonCounts.ContainsKey($reason.Pattern)) { $reasonCounts[$reason.Pattern] = 0 }
-            $reasonCounts[$reason.Pattern]++
+            $reasonCounts[$reason.Pattern] = $reasonCounts[$reason.Pattern] + 1   # $null + 1 = 1 for a new key
         }
     }
     foreach ($k in ($reasonCounts.Keys | Sort-Object)) {

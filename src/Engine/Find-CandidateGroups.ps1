@@ -4,10 +4,11 @@ function Find-CandidateGroups {
         [object[]]$Groups, [string[]]$Keywords, [object[]]$VendorUsers,
         [hashtable]$KnownKeys, [hashtable]$ExcludeKeys
     )
+    $vendorIndex = New-VendorPrincipalIndex -VendorUsers $VendorUsers
     $results = New-Object System.Collections.Generic.List[object]
     foreach ($g in $Groups) {
-        $dnKey   = ("{0}|{1}" -f $g.Domain, $g.DistinguishedName).ToLower()
-        $nameKey = ("{0}|{1}" -f $g.Domain, $g.Name).ToLower()
+        $dnKey   = Get-GroupLookupKey -Domain $g.Domain -Identity $g.DistinguishedName
+        $nameKey = Get-GroupLookupKey -Domain $g.Domain -Identity $g.Name
         if ($ExcludeKeys.ContainsKey($dnKey) -or $ExcludeKeys.ContainsKey($nameKey)) { continue }
         $isKnown = $KnownKeys.ContainsKey($dnKey) -or $KnownKeys.ContainsKey($nameKey)
 
@@ -15,8 +16,8 @@ function Find-CandidateGroups {
         $reasons += Get-NameMatchReason       -GroupName $g.Name -Keywords $Keywords
         $reasons += Get-ContainerMatchReason  -DistinguishedName $g.DistinguishedName -Keywords $Keywords
         $reasons += Get-DescriptionMatchReasons -Description $g.Description -Info $g.Info -Keywords $Keywords -VendorUsers $VendorUsers
-        $reasons += Get-OwnerMatchReason      -ManagedBy $g.ManagedBy -VendorUsers $VendorUsers
-        $reasons += Get-MemberMatchReasons    -Member $g.Member -VendorUsers $VendorUsers
+        $reasons += Get-OwnerMatchReason      -ManagedBy $g.ManagedBy -VendorUsers $VendorUsers -Index $vendorIndex
+        $reasons += Get-MemberMatchReasons    -Member $g.Member -VendorUsers $VendorUsers -Index $vendorIndex
         $reasons = @($reasons | Where-Object { $_ })
 
         $cc = Get-MatchConfidence -Reasons $reasons -IsKnown:$isKnown
