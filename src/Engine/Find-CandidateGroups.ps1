@@ -4,7 +4,7 @@ function Find-CandidateGroups {
         [object[]]$Groups, [string[]]$Keywords, [object[]]$VendorUsers,
         [hashtable]$KnownKeys, [hashtable]$ExcludeKeys
     )
-    $results = @()
+    $results = New-Object System.Collections.Generic.List[object]
     foreach ($g in $Groups) {
         $dnKey   = ("{0}|{1}" -f $g.Domain, $g.DistinguishedName).ToLower()
         $nameKey = ("{0}|{1}" -f $g.Domain, $g.Name).ToLower()
@@ -22,7 +22,7 @@ function Find-CandidateGroups {
         $cc = Get-MatchConfidence -Reasons $reasons -IsKnown:$isKnown
         $source = if ($isKnown) { 'Known' } else { 'Discovered' }
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Domain = $g.Domain; Name = $g.Name; DistinguishedName = $g.DistinguishedName
             Description = $g.Description; Info = $g.Info; ManagedBy = $g.ManagedBy
             Member = @($g.Member); MemberOf = @($g.MemberOf)
@@ -30,7 +30,8 @@ function Find-CandidateGroups {
             AdminCount = $g.AdminCount; WhenCreated = $g.WhenCreated; WhenChanged = $g.WhenChanged
             Reasons = $reasons; Score = $cc.Score; Confidence = $cc.Confidence
             IsKnown = $isKnown; Source = $source
-        }
+        })
     }
-    if ($results.Count) { ,$results } else { $results }
+    if ($results.Count) { return ,$results.ToArray() }
+    return @()
 }
