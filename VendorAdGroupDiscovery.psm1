@@ -2,4 +2,4 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Get-ChildItem -Path (Join-Path $here 'src') -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue |
     ForEach-Object { . $_.FullName }
-Export-ModuleMember -Function 'Invoke-AdVendorGroupAudit'
+Export-ModuleMember -Function 'Find-VendorAdGroup'

@@ -1,49 +1,49 @@
 <#
 .SYNOPSIS
-    Loader bridge for the audit fixture. Turns directory.json + audit-input/*.csv
-    into the exact object shape that Get-AdAuditData produces, so the rest of the
+    Loader bridge for the discovery fixture. Turns directory.json + discovery-input/*.csv
+    into the exact object shape that Get-AdDiscoveryData produces, so the rest of the
     engine pipeline (Find-CandidateGroups -> Expand-VendorGroupClosure ->
-    Select-AuditResults -> Resolve-ResultDisplay -> report writers) can run over
+    Select-DiscoveryResults -> Resolve-ResultDisplay -> report writers) can run over
     the fixture with NO live Active Directory and NO Get-AD* mocking.
 
 .NOTES
     Requires the module's src functions to be loaded first (they provide
     ConvertTo-IdentityTokens and Resolve-DirectoryIndex). In a test or demo,
-    dot-source tests/_TestHelpers.ps1 before calling Get-FixtureAuditData.
+    dot-source tests/_TestHelpers.ps1 before calling Get-FixtureDiscoveryData.
 #>
 
-function Import-AuditFixtureDirectory {
+function Import-DiscoveryFixtureDirectory {
     [CmdletBinding()]
     param([string]$Path = (Join-Path $PSScriptRoot 'directory.json'))
     Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
-function Get-FixtureAuditData {
-    # Returns a Get-AdAuditData-shaped object built from the fixture:
+function Get-FixtureDiscoveryData {
+    # Returns a Get-AdDiscoveryData-shaped object built from the fixture:
     #   Groups, VendorUsers (with Tokens), DnIndex, FailedDomains, Warnings
-    # plus InputData (the parsed audit-input CSVs) for convenience.
+    # plus InputData (the parsed discovery-input CSVs) for convenience.
     [CmdletBinding()]
     param([string]$FixtureDir = $PSScriptRoot)
 
-    $dir = Import-AuditFixtureDirectory -Path (Join-Path $FixtureDir 'directory.json')
+    $dir = Import-DiscoveryFixtureDirectory -Path (Join-Path $FixtureDir 'directory.json')
 
-    $inDir = Join-Path $FixtureDir 'audit-input'
-    $inputData = Read-AuditInput `
+    $inDir = Join-Path $FixtureDir 'discovery-input'
+    $inputData = Read-DiscoveryInput `
         -UsersCsv        (Join-Path $inDir 'users.csv') `
         -DomainsCsv      (Join-Path $inDir 'domains.csv') `
         -KeywordsCsv     (Join-Path $inDir 'keywords.csv') `
         -KnownGroupsCsv  (Join-Path $inDir 'known.csv') `
         -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv')
 
-    # The audit targets the users listed in users.csv; resolve each against the
+    # The discovery targets the users listed in users.csv; resolve each against the
     # directory and build identity tokens (AD attributes + CSV display name).
-    $auditBySam = @{}
-    foreach ($cu in $inputData.Users) { $auditBySam[$cu.SamAccountName.ToLower()] = $cu }
+    $discoveryBySam = @{}
+    foreach ($cu in $inputData.Users) { $discoveryBySam[$cu.SamAccountName.ToLower()] = $cu }
 
     $vendorUsers = foreach ($u in $dir.Users) {
         $key = $u.SamAccountName.ToLower()
-        if (-not $auditBySam.ContainsKey($key)) { continue }
-        $csv = $auditBySam[$key]
+        if (-not $discoveryBySam.ContainsKey($key)) { continue }
+        $csv = $discoveryBySam[$key]
         $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -DisplayName $u.DisplayName `
             -GivenName $u.GivenName -Surname $u.Surname -Cn $u.DisplayName -Name $u.DisplayName `
             -Upn $u.UserPrincipalName -Mail $u.Mail -CsvDisplayName $csv.DisplayName

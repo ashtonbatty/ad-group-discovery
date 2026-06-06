@@ -10,7 +10,7 @@ Describe 'Resolve-DirectoryIndex' {
     }
 }
 
-Describe 'Get-AdAuditData' {
+Describe 'Get-AdDiscoveryData' {
     BeforeAll {
         Mock -CommandName Get-ADGroup -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName='CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
@@ -26,11 +26,11 @@ Describe 'Get-AdAuditData' {
         }
     }
     It 'loads groups and resolves vendor users for a domain' {
-        $auditInput = [pscustomobject]@{
+        $discoveryInput = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdAuditData -InputData $auditInput
+        $data = Get-AdDiscoveryData -InputData $discoveryInput
         $data.Groups[0].Name | Should -Be 'Acme Admins'
         $data.Groups[0].Domain | Should -Be 'corp.example.com'
         $data.VendorUsers[0].Tokens | Should -Contain 'John Smith'
@@ -38,19 +38,19 @@ Describe 'Get-AdAuditData' {
     }
     It 'records a failed domain and continues' {
         Mock -CommandName Get-ADGroup -MockWith { throw 'server down' }
-        $auditInput = [pscustomobject]@{
+        $discoveryInput = [pscustomobject]@{
             Users   = @()
             Domains = @([pscustomobject]@{ Domain='dead.example.com'; Server=$null; Name=$null })
         }
-        $data = Get-AdAuditData -InputData $auditInput
+        $data = Get-AdDiscoveryData -InputData $discoveryInput
         $data.FailedDomains | Should -Contain 'dead.example.com'
     }
     It 'skips a SamAccountName containing filter-injection characters and warns' {
-        $auditInput = [pscustomobject]@{
+        $discoveryInput = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName="evil') -or (cn=*"; DisplayName='X' })
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdAuditData -InputData $auditInput
+        $data = Get-AdDiscoveryData -InputData $discoveryInput
         $data.VendorUsers.Count | Should -Be 0
         ($data.Warnings -join "`n") | Should -Match 'suspicious'
     }

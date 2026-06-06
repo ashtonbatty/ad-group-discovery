@@ -2,7 +2,7 @@ function Write-ConsoleSummary {
     [CmdletBinding()]
     param([object[]]$Results, [object]$Summary, [switch]$AsString)
     $lines = @()
-    $lines += '=== AD Vendor Group Audit Summary ==='
+    $lines += '=== Vendor AD Group Discovery Summary ==='
     $lines += "Generated:       $($Summary.GeneratedAt)"
     $lines += "Groups reported: $(@($Results).Count)"
     $lines += ''
@@ -30,7 +30,7 @@ function Write-ConsoleSummary {
     }
     if (@($Summary.FailedDomains).Count) {
         $lines += ''
-        $lines += 'Failed domains (not audited):'
+        $lines += 'Failed domains (not discovered):'
         foreach ($d in $Summary.FailedDomains) { $lines += "  $d" }
     }
     if (@($Summary.Warnings).Count) {

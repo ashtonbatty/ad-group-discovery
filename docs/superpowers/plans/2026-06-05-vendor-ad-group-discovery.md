@@ -1,8 +1,8 @@
-# AD Vendor Group Audit Implementation Plan
+# Vendor AD Group Discovery Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a PowerShell 5.1 tool that audits Active Directory across multiple domains to discover the groups belonging to or used by a vendor, and produces CSV / HTML / console reports with confidence-scored match reasons.
+**Goal:** Build a PowerShell 5.1 tool that discovers Active Directory across multiple domains to discover the groups belonging to or used by a vendor, and produces CSV / HTML / console reports with confidence-scored match reasons.
 
 **Architecture:** Modular pipeline. A thin AD adapter (the only code calling `Get-AD*`) bulk-loads groups per domain and resolves vendor-user identities. A set of *pure* engine functions match each group against the known patterns, score confidence, and iterate nested-group membership to closure. Swappable report writers consume one common result shape. The pure engine is unit-tested with Pester without a live directory.
 
@@ -20,7 +20,7 @@
 
 ## Data contracts (referenced by multiple tasks)
 
-**Normalized input** (from `Read-AuditInput`):
+**Normalized input** (from `Read-DiscoveryInput`):
 ```
 [pscustomobject]@{
   Users         = @( [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' } )
@@ -65,34 +65,34 @@
 ## Task 1: Project scaffolding
 
 **Files:**
-- Create: `AdVendorGroupAudit.psm1`
-- Create: `AdVendorGroupAudit.psd1`
+- Create: `VendorAdGroupDiscovery.psm1`
+- Create: `VendorAdGroupDiscovery.psd1`
 - Create: `PSScriptAnalyzerSettings.psd1`
 - Create: `tests/_TestHelpers.ps1`
 - Create: `tests/Scaffolding.Tests.ps1`
 - Create: `samples/.gitkeep`, `src/.gitkeep`
 
-- [ ] **Step 1: Create the module loader** `AdVendorGroupAudit.psm1`
+- [ ] **Step 1: Create the module loader** `VendorAdGroupDiscovery.psm1`
 
 ```powershell
 # Dot-source every function under src/, then export the public entry point.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Get-ChildItem -Path (Join-Path $here 'src') -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue |
     ForEach-Object { . $_.FullName }
-Export-ModuleMember -Function 'Invoke-AdVendorGroupAudit'
+Export-ModuleMember -Function 'Find-VendorAdGroup'
 ```
 
-- [ ] **Step 2: Create the manifest** `AdVendorGroupAudit.psd1`
+- [ ] **Step 2: Create the manifest** `VendorAdGroupDiscovery.psd1`
 
 ```powershell
 @{
-    RootModule        = 'AdVendorGroupAudit.psm1'
+    RootModule        = 'VendorAdGroupDiscovery.psm1'
     ModuleVersion     = '0.1.0'
     GUID              = '9d3f5b62-1a4e-4c77-9b2a-0a1f2e3d4c50'
     Author            = 'Ashton Batty'
-    Description       = 'Audit AD groups belonging to or used by a vendor across multiple domains.'
+    Description       = 'Discover AD groups belonging to or used by a vendor across multiple domains.'
     PowerShellVersion = '5.1'
-    FunctionsToExport = @('Invoke-AdVendorGroupAudit')
+    FunctionsToExport = @('Find-VendorAdGroup')
 }
 ```
 
@@ -122,7 +122,7 @@ BeforeAll { . "$PSScriptRoot/_TestHelpers.ps1" }
 Describe 'Scaffolding' {
     It 'has a module manifest that parses' {
         $root = Split-Path -Parent $PSScriptRoot
-        $manifest = Join-Path $root 'AdVendorGroupAudit.psd1'
+        $manifest = Join-Path $root 'VendorAdGroupDiscovery.psd1'
         Test-Path $manifest | Should -BeTrue
         { Import-PowerShellDataFile -Path $manifest } | Should -Not -Throw
     }
@@ -140,24 +140,24 @@ Expected: 1 test passes.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add AdVendorGroupAudit.psm1 AdVendorGroupAudit.psd1 PSScriptAnalyzerSettings.psd1 tests/ samples/ src/
-git commit -m "feat: scaffold AdVendorGroupAudit module and test harness"
+git add VendorAdGroupDiscovery.psm1 VendorAdGroupDiscovery.psd1 PSScriptAnalyzerSettings.psd1 tests/ samples/ src/
+git commit -m "feat: scaffold VendorAdGroupDiscovery module and test harness"
 ```
 
 ---
 
-## Task 2: Read-AuditInput (input layer)
+## Task 2: Read-DiscoveryInput (input layer)
 
 **Files:**
-- Create: `src/Input/Read-AuditInput.ps1`
-- Test: `tests/Read-AuditInput.Tests.ps1`
+- Create: `src/Input/Read-DiscoveryInput.ps1`
+- Test: `tests/Read-DiscoveryInput.Tests.ps1`
 
 - [ ] **Step 1: Write the failing test**
 
 ```powershell
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("audit_" + [guid]::NewGuid())
+    $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("discovery_" + [guid]::NewGuid())
     New-Item -ItemType Directory -Path $script:tmp | Out-Null
     Set-Content "$tmp/users.csv"        "SamAccountName,DisplayName`njsmith,John Smith"
     Set-Content "$tmp/domains.csv"      "Domain,Server,Name`ncorp.example.com,dc1,Corp"
@@ -167,9 +167,9 @@ BeforeAll {
 }
 AfterAll { Remove-Item -Recurse -Force $script:tmp -ErrorAction SilentlyContinue }
 
-Describe 'Read-AuditInput' {
+Describe 'Read-DiscoveryInput' {
     It 'reads all five CSVs into a normalized object' {
-        $r = Read-AuditInput -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+        $r = Read-DiscoveryInput -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv"
         $r.Users[0].SamAccountName | Should -Be 'jsmith'
         $r.Domains[0].Domain       | Should -Be 'corp.example.com'
@@ -179,14 +179,14 @@ Describe 'Read-AuditInput' {
     }
 
     It 'throws a clear error when a required file is missing' {
-        { Read-AuditInput -UsersCsv "$tmp/nope.csv" -DomainsCsv "$tmp/domains.csv" `
+        { Read-DiscoveryInput -UsersCsv "$tmp/nope.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
             Should -Throw '*not found*'
     }
 
     It 'throws when the users CSV lacks SamAccountName' {
         Set-Content "$tmp/bad.csv" "Foo`nbar"
-        { Read-AuditInput -UsersCsv "$tmp/bad.csv" -DomainsCsv "$tmp/domains.csv" `
+        { Read-DiscoveryInput -UsersCsv "$tmp/bad.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
             Should -Throw '*SamAccountName*'
     }
@@ -195,13 +195,13 @@ Describe 'Read-AuditInput' {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Read-AuditInput.Tests.ps1 -Output Detailed"`
-Expected: FAIL — `Read-AuditInput` not recognized.
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Read-DiscoveryInput.Tests.ps1 -Output Detailed"`
+Expected: FAIL — `Read-DiscoveryInput` not recognized.
 
-- [ ] **Step 3: Write the implementation** `src/Input/Read-AuditInput.ps1`
+- [ ] **Step 3: Write the implementation** `src/Input/Read-DiscoveryInput.ps1`
 
 ```powershell
-function Read-AuditInput {
+function Read-DiscoveryInput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$UsersCsv,
@@ -241,14 +241,14 @@ function Read-AuditInput {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Read-AuditInput.Tests.ps1 -Output Detailed"`
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Read-DiscoveryInput.Tests.ps1 -Output Detailed"`
 Expected: 3 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Input/Read-AuditInput.ps1 tests/Read-AuditInput.Tests.ps1
-git commit -m "feat: add Read-AuditInput with validation"
+git add src/Input/Read-DiscoveryInput.ps1 tests/Read-DiscoveryInput.Tests.ps1
+git commit -m "feat: add Read-DiscoveryInput with validation"
 ```
 
 ---
@@ -1011,10 +1011,10 @@ git commit -m "feat: add Expand-VendorGroupClosure (nested-group closure)"
 
 ---
 
-## Task 12: Select-AuditResults and Resolve-ResultDisplay
+## Task 12: Select-DiscoveryResults and Resolve-ResultDisplay
 
 **Files:**
-- Create: `src/Engine/Select-AuditResults.ps1`
+- Create: `src/Engine/Select-DiscoveryResults.ps1`
 - Create: `src/Engine/Resolve-ResultDisplay.ps1`
 - Create: `src/Engine/Resolve-DisplayName.ps1`
 - Test: `tests/ResultShaping.Tests.ps1`
@@ -1035,14 +1035,14 @@ BeforeAll {
     }
 }
 
-Describe 'Select-AuditResults' {
+Describe 'Select-DiscoveryResults' {
     It 'drops None and keeps Low+ by default' {
         $in = @((New-R 'a' 'None'), (New-R 'b' 'Low'), (New-R 'c' 'High'))
-        (Select-AuditResults -Results $in).Name | Should -Be @('b','c')
+        (Select-DiscoveryResults -Results $in).Name | Should -Be @('b','c')
     }
     It 'honours a higher MinimumConfidence' {
         $in = @((New-R 'b' 'Low'), (New-R 'c' 'High'))
-        (Select-AuditResults -Results $in -MinimumConfidence 'High').Name | Should -Be @('c')
+        (Select-DiscoveryResults -Results $in -MinimumConfidence 'High').Name | Should -Be @('c')
     }
 }
 
@@ -1085,10 +1085,10 @@ function Resolve-DisplayName {
 }
 ```
 
-- [ ] **Step 4: Write `src/Engine/Select-AuditResults.ps1`**
+- [ ] **Step 4: Write `src/Engine/Select-DiscoveryResults.ps1`**
 
 ```powershell
-function Select-AuditResults {
+function Select-DiscoveryResults {
     [CmdletBinding()]
     param([object[]]$Results, [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low')
     $rank = @{ None = 0; Low = 1; Medium = 2; High = 3; Confirmed = 4 }
@@ -1133,18 +1133,18 @@ Expected: 5 tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/Engine/Select-AuditResults.ps1 src/Engine/Resolve-ResultDisplay.ps1 src/Engine/Resolve-DisplayName.ps1 tests/ResultShaping.Tests.ps1
+git add src/Engine/Select-DiscoveryResults.ps1 src/Engine/Resolve-ResultDisplay.ps1 src/Engine/Resolve-DisplayName.ps1 tests/ResultShaping.Tests.ps1
 git commit -m "feat: add result selection and display resolution"
 ```
 
 ---
 
-## Task 13: AD adapter (Get-AdAuditData + Resolve-DirectoryIndex)
+## Task 13: AD adapter (Get-AdDiscoveryData + Resolve-DirectoryIndex)
 
 **Files:**
 - Create: `src/Ad/Resolve-DirectoryIndex.ps1`
-- Create: `src/Ad/Get-AdAuditData.ps1`
-- Test: `tests/Get-AdAuditData.Tests.ps1`
+- Create: `src/Ad/Get-AdDiscoveryData.ps1`
+- Test: `tests/Get-AdDiscoveryData.Tests.ps1`
 
 > The adapter is the only code that calls `Get-AD*`. Tests mock those cmdlets with Pester. `Resolve-DirectoryIndex` builds the `DnIndex` (lowercased DN → display name) across all loaded groups and resolved users.
 
@@ -1163,7 +1163,7 @@ Describe 'Resolve-DirectoryIndex' {
     }
 }
 
-Describe 'Get-AdAuditData' {
+Describe 'Get-AdDiscoveryData' {
     BeforeAll {
         Mock -CommandName Get-ADGroup -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName='CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
@@ -1183,7 +1183,7 @@ Describe 'Get-AdAuditData' {
             Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdAuditData -InputData $input
+        $data = Get-AdDiscoveryData -InputData $input
         $data.Groups[0].Name | Should -Be 'Acme Admins'
         $data.Groups[0].Domain | Should -Be 'corp.example.com'
         $data.VendorUsers[0].Tokens | Should -Contain 'John Smith'
@@ -1195,7 +1195,7 @@ Describe 'Get-AdAuditData' {
             Users   = @()
             Domains = @([pscustomobject]@{ Domain='dead.example.com'; Server=$null; Name=$null })
         }
-        $data = Get-AdAuditData -InputData $input
+        $data = Get-AdDiscoveryData -InputData $input
         $data.FailedDomains | Should -Contain 'dead.example.com'
     }
 }
@@ -1203,7 +1203,7 @@ Describe 'Get-AdAuditData' {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Get-AdAuditData.Tests.ps1 -Output Detailed"`
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Get-AdDiscoveryData.Tests.ps1 -Output Detailed"`
 Expected: FAIL — functions not recognized.
 
 - [ ] **Step 3: Write `src/Ad/Resolve-DirectoryIndex.ps1`**
@@ -1223,10 +1223,10 @@ function Resolve-DirectoryIndex {
 }
 ```
 
-- [ ] **Step 4: Write `src/Ad/Get-AdAuditData.ps1`**
+- [ ] **Step 4: Write `src/Ad/Get-AdDiscoveryData.ps1`**
 
 ```powershell
-function Get-AdAuditData {
+function Get-AdDiscoveryData {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$InputData,
@@ -1303,14 +1303,14 @@ function Get-AdAuditData {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Get-AdAuditData.Tests.ps1 -Output Detailed"`
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Get-AdDiscoveryData.Tests.ps1 -Output Detailed"`
 Expected: 3 tests pass. (If the `Sid` string differs under the mock, the assertions still pass.)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/Ad/Resolve-DirectoryIndex.ps1 src/Ad/Get-AdAuditData.ps1 tests/Get-AdAuditData.Tests.ps1
-git commit -m "feat: add AD adapter (Get-AdAuditData, Resolve-DirectoryIndex)"
+git add src/Ad/Resolve-DirectoryIndex.ps1 src/Ad/Get-AdDiscoveryData.ps1 tests/Get-AdDiscoveryData.Tests.ps1
+git commit -m "feat: add AD adapter (Get-AdDiscoveryData, Resolve-DirectoryIndex)"
 ```
 
 ---
@@ -1479,9 +1479,9 @@ th{background:#f2f2f2}
 '@
 
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine('<!DOCTYPE html><html><head><meta charset="utf-8"><title>AD Vendor Group Audit</title>')
+    [void]$sb.AppendLine('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vendor AD Group Discovery</title>')
     [void]$sb.AppendLine($css); [void]$sb.AppendLine('</head><body>')
-    [void]$sb.AppendLine('<h1>AD Vendor Group Audit</h1>')
+    [void]$sb.AppendLine('<h1>Vendor AD Group Discovery</h1>')
     [void]$sb.AppendLine('<div class="summary">')
     [void]$sb.AppendLine("<div>Generated: $(ConvertTo-Html "$($Summary.GeneratedAt)")</div>")
     [void]$sb.AppendLine("<div>Groups reported: $($Summary.TotalGroups)</div>")
@@ -1575,7 +1575,7 @@ function Write-ConsoleSummary {
     [CmdletBinding()]
     param([object[]]$Results, [object]$Summary, [switch]$AsString)
     $lines = @()
-    $lines += '=== AD Vendor Group Audit Summary ==='
+    $lines += '=== Vendor AD Group Discovery Summary ==='
     $lines += "Generated:       $($Summary.GeneratedAt)"
     $lines += "Groups reported: $(@($Results).Count)"
     $lines += ''
@@ -1604,7 +1604,7 @@ function Write-ConsoleSummary {
     }
     if (@($Summary.FailedDomains).Count) {
         $lines += ''
-        $lines += 'Failed domains (not audited):'
+        $lines += 'Failed domains (not discovered):'
         foreach ($d in $Summary.FailedDomains) { $lines += "  $d" }
     }
     if (@($Summary.Warnings).Count) {
@@ -1631,14 +1631,14 @@ git commit -m "feat: add Write-ConsoleSummary"
 
 ---
 
-## Task 17: Invoke-AdVendorGroupAudit (public orchestrator) + runner
+## Task 17: Find-VendorAdGroup (public orchestrator) + runner
 
 **Files:**
-- Create: `src/Invoke-AdVendorGroupAudit.ps1`
-- Create: `Invoke-AdVendorGroupAudit.ps1` (repo-root runner)
-- Test: `tests/Invoke-AdVendorGroupAudit.Tests.ps1`
+- Create: `src/Find-VendorAdGroup.ps1`
+- Create: `Find-VendorAdGroup.ps1` (repo-root runner)
+- Test: `tests/Find-VendorAdGroup.Tests.ps1`
 
-> The public function wires the pipeline: read input → build key sets → `Get-AdAuditData` → `Find-CandidateGroups` → `Expand-VendorGroupClosure` → `Select-AuditResults` → `Resolve-ResultDisplay` → writers. The integration test mocks `Get-AdAuditData` so no live AD is needed.
+> The public function wires the pipeline: read input → build key sets → `Get-AdDiscoveryData` → `Find-CandidateGroups` → `Expand-VendorGroupClosure` → `Select-DiscoveryResults` → `Resolve-ResultDisplay` → writers. The integration test mocks `Get-AdDiscoveryData` so no live AD is needed.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1655,9 +1655,9 @@ BeforeAll {
 }
 AfterAll { Remove-Item -Recurse -Force $script:tmp -ErrorAction SilentlyContinue }
 
-Describe 'Invoke-AdVendorGroupAudit' {
+Describe 'Find-VendorAdGroup' {
     BeforeAll {
-        Mock -CommandName Get-AdAuditData -MockWith {
+        Mock -CommandName Get-AdDiscoveryData -MockWith {
             [pscustomobject]@{
                 Groups = @(
                     [pscustomobject]@{ Domain='corp.example.com'; Name='Acme Admins'
@@ -1675,7 +1675,7 @@ Describe 'Invoke-AdVendorGroupAudit' {
     }
     It 'produces a CSV report containing the discovered group' {
         $out = Join-Path $tmp 'reports'
-        Invoke-AdVendorGroupAudit -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
             -OutputDirectory $out -Formats @('Csv')
         $csv = Get-ChildItem $out -Filter '*.csv' | Select-Object -First 1
@@ -1687,13 +1687,13 @@ Describe 'Invoke-AdVendorGroupAudit' {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Invoke-AdVendorGroupAudit.Tests.ps1 -Output Detailed"`
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Find-VendorAdGroup.Tests.ps1 -Output Detailed"`
 Expected: FAIL — function not recognized.
 
-- [ ] **Step 3: Write the implementation** `src/Invoke-AdVendorGroupAudit.ps1`
+- [ ] **Step 3: Write the implementation** `src/Find-VendorAdGroup.ps1`
 
 ```powershell
-function Invoke-AdVendorGroupAudit {
+function Find-VendorAdGroup {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$UsersCsv,
@@ -1709,7 +1709,7 @@ function Invoke-AdVendorGroupAudit {
         [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
     )
 
-    $inputData = Read-AuditInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
+    $inputData = Read-DiscoveryInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
         -KnownGroupsCsv $KnownGroupsCsv -ExcludeGroupsCsv $ExcludeGroupsCsv
 
     $knownKeys = @{}
@@ -1721,7 +1721,7 @@ function Invoke-AdVendorGroupAudit {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
 
-    $data = Get-AdAuditData -InputData $inputData -Credential $Credential
+    $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential
 
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }
@@ -1729,7 +1729,7 @@ function Invoke-AdVendorGroupAudit {
     $candidates = Find-CandidateGroups -Groups $groups -Keywords $inputData.Keywords `
         -VendorUsers $data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
     $candidates = Expand-VendorGroupClosure -Results $candidates -MaxIterations $MaxIterations
-    $selected   = Select-AuditResults -Results $candidates -MinimumConfidence $MinimumConfidence
+    $selected   = Select-DiscoveryResults -Results $candidates -MinimumConfidence $MinimumConfidence
     $selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
     $selected   = @($selected | Sort-Object @{ Expression = {
         switch ($_.Confidence) { 'Confirmed' {0} 'High' {1} 'Medium' {2} 'Low' {3} default {4} } } }, Domain, Name)
@@ -1742,10 +1742,10 @@ function Invoke-AdVendorGroupAudit {
     }
 
     if ($Formats -contains 'Csv') {
-        Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-audit.csv')
+        Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv')
     }
     if ($Formats -contains 'Html') {
-        Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-audit.html')
+        Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-discovery.html')
     }
     if ($Formats -contains 'Console') {
         Write-ConsoleSummary -Results $selected -Summary $summary
@@ -1755,14 +1755,14 @@ function Invoke-AdVendorGroupAudit {
 }
 ```
 
-- [ ] **Step 4: Create the repo-root runner** `Invoke-AdVendorGroupAudit.ps1`
+- [ ] **Step 4: Create the repo-root runner** `Find-VendorAdGroup.ps1`
 
 ```powershell
 <#
 .SYNOPSIS
-  Runner for the AD Vendor Group Audit. Imports the module and invokes the audit.
+  Runner for the Vendor AD Group Discovery. Imports the module and invokes the discovery.
 .EXAMPLE
-  ./Invoke-AdVendorGroupAudit.ps1 -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
+  ./Find-VendorAdGroup.ps1 -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
     -KeywordsCsv samples/keywords.csv -KnownGroupsCsv samples/known.csv `
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
 #>
@@ -1780,20 +1780,20 @@ param(
     [switch]$SecurityGroupsOnly,
     [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
 )
-Import-Module (Join-Path $PSScriptRoot 'AdVendorGroupAudit.psd1') -Force
-Invoke-AdVendorGroupAudit @PSBoundParameters | Out-Null
+Import-Module (Join-Path $PSScriptRoot 'VendorAdGroupDiscovery.psd1') -Force
+Find-VendorAdGroup @PSBoundParameters | Out-Null
 ```
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Invoke-AdVendorGroupAudit.Tests.ps1 -Output Detailed"`
+Run: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Find-VendorAdGroup.Tests.ps1 -Output Detailed"`
 Expected: 1 test passes.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/Invoke-AdVendorGroupAudit.ps1 Invoke-AdVendorGroupAudit.ps1 tests/Invoke-AdVendorGroupAudit.Tests.ps1
-git commit -m "feat: add Invoke-AdVendorGroupAudit orchestrator and runner"
+git add src/Find-VendorAdGroup.ps1 Find-VendorAdGroup.ps1 tests/Find-VendorAdGroup.Tests.ps1
+git commit -m "feat: add Find-VendorAdGroup orchestrator and runner"
 ```
 
 ---
@@ -1840,9 +1840,9 @@ corp.example.com,Domain Users
 - [ ] **Step 2: Write `README.md`**
 
 ````markdown
-# AD Vendor Group Audit
+# Vendor AD Group Discovery
 
-Audits Active Directory across multiple domains to discover the groups belonging to
+Scans Active Directory across multiple domains to discover the groups belonging to
 or used by a vendor, and produces CSV, HTML, and console reports with
 confidence-scored match reasons.
 
@@ -1850,7 +1850,7 @@ confidence-scored match reasons.
 
 - Windows PowerShell 5.1
 - RSAT ActiveDirectory module (`Import-Module ActiveDirectory`)
-- Read access to each domain being audited
+- Read access to each domain being discovered
 
 ## Inputs (one CSV per list)
 
@@ -1865,7 +1865,7 @@ confidence-scored match reasons.
 ## Usage
 
 ```powershell
-./Invoke-AdVendorGroupAudit.ps1 `
+./Find-VendorAdGroup.ps1 `
     -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
     -KeywordsCsv samples/keywords.csv -KnownGroupsCsv samples/known.csv `
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
@@ -1889,8 +1889,8 @@ Members flagged with a leading `*` in reports are vendor users.
 
 ## Output
 
-- `vendor-group-audit.csv` — one row per group, with a `MatchReasons` column
-- `vendor-group-audit.html` — grouped by domain and confidence, reasons highlighted
+- `vendor-group-discovery.csv` — one row per group, with a `MatchReasons` column
+- `vendor-group-discovery.html` — grouped by domain and confidence, reasons highlighted
 - Console summary — counts per domain / band / reason, plus failed domains
 
 ## Development

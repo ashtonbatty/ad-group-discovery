@@ -10,9 +10,9 @@ BeforeAll {
 }
 AfterAll { Remove-Item -Recurse -Force $script:tmp -ErrorAction SilentlyContinue }
 
-Describe 'Invoke-AdVendorGroupAudit' {
+Describe 'Find-VendorAdGroup' {
     BeforeAll {
-        Mock -CommandName Get-AdAuditData -MockWith {
+        Mock -CommandName Get-AdDiscoveryData -MockWith {
             [pscustomobject]@{
                 Groups = @(
                     [pscustomobject]@{ Domain='corp.example.com'; Name='Acme Admins'
@@ -30,7 +30,7 @@ Describe 'Invoke-AdVendorGroupAudit' {
     }
     It 'produces a CSV report containing the discovered group' {
         $out = Join-Path $tmp 'reports'
-        Invoke-AdVendorGroupAudit -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
             -OutputDirectory $out -Formats @('Csv')
         $csv = Get-ChildItem $out -Filter '*.csv' | Select-Object -First 1

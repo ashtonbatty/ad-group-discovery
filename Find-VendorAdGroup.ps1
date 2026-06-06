@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-  Runner for the AD Vendor Group Audit. Imports the module and invokes the audit.
+  Runner for the Vendor AD Group Discovery. Imports the module and invokes the discovery.
 .EXAMPLE
-  ./Invoke-AdVendorGroupAudit.ps1 -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
+  ./Find-VendorAdGroup.ps1 -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
     -KeywordsCsv samples/keywords.csv -KnownGroupsCsv samples/known.csv `
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
 #>
@@ -20,5 +20,5 @@ param(
     [switch]$SecurityGroupsOnly,
     [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
 )
-Import-Module (Join-Path $PSScriptRoot 'AdVendorGroupAudit.psd1') -Force
-Invoke-AdVendorGroupAudit @PSBoundParameters | Out-Null
+Import-Module (Join-Path $PSScriptRoot 'VendorAdGroupDiscovery.psd1') -Force
+Find-VendorAdGroup @PSBoundParameters | Out-Null

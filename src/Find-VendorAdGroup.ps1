@@ -1,4 +1,4 @@
-function Invoke-AdVendorGroupAudit {
+function Find-VendorAdGroup {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$UsersCsv,
@@ -14,7 +14,7 @@ function Invoke-AdVendorGroupAudit {
         [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
     )
 
-    $inputData = Read-AuditInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
+    $inputData = Read-DiscoveryInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
         -KnownGroupsCsv $KnownGroupsCsv -ExcludeGroupsCsv $ExcludeGroupsCsv
 
     $knownKeys = @{}
@@ -26,7 +26,7 @@ function Invoke-AdVendorGroupAudit {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
 
-    $data = Get-AdAuditData -InputData $inputData -Credential $Credential
+    $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential
 
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }
@@ -34,7 +34,7 @@ function Invoke-AdVendorGroupAudit {
     $candidates = Find-CandidateGroups -Groups $groups -Keywords $inputData.Keywords `
         -VendorUsers $data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
     $candidates = Expand-VendorGroupClosure -Results $candidates -MaxIterations $MaxIterations
-    $selected   = Select-AuditResults -Results $candidates -MinimumConfidence $MinimumConfidence
+    $selected   = Select-DiscoveryResults -Results $candidates -MinimumConfidence $MinimumConfidence
     $selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
     $rank       = Get-ConfidenceRank
     $selected   = @($selected | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Domain, Name)
@@ -47,10 +47,10 @@ function Invoke-AdVendorGroupAudit {
     }
 
     if ($Formats -contains 'Csv') {
-        Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-audit.csv')
+        Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv')
     }
     if ($Formats -contains 'Html') {
-        Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-audit.html')
+        Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-discovery.html')
     }
     if ($Formats -contains 'Console') {
         Write-ConsoleSummary -Results $selected -Summary $summary

@@ -1,4 +1,4 @@
-function Read-AuditInput {
+function Read-DiscoveryInput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$UsersCsv,

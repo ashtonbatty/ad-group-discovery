@@ -1,6 +1,6 @@
-# AD Vendor Group Audit
+# Vendor AD Group Discovery
 
-Audits Active Directory across multiple domains to discover the groups belonging to
+Scans Active Directory across multiple domains to discover the groups belonging to
 or used by a vendor, and produces CSV, HTML, and console reports with
 confidence-scored match reasons.
 
@@ -8,7 +8,7 @@ confidence-scored match reasons.
 
 - Windows PowerShell 5.1
 - RSAT ActiveDirectory module (`Import-Module ActiveDirectory`)
-- Read access to each domain being audited
+- Read access to each domain being discovered
 
 ## Inputs (one CSV per list)
 
@@ -25,7 +25,7 @@ confidence-scored match reasons.
 ## Usage
 
 ```powershell
-./Invoke-AdVendorGroupAudit.ps1 `
+./Find-VendorAdGroup.ps1 `
     -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
     -KeywordsCsv samples/keywords.csv -KnownGroupsCsv samples/known.csv `
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
@@ -49,8 +49,8 @@ Members flagged with a leading `*` in reports are vendor users.
 
 ## Output
 
-- `vendor-group-audit.csv` — one row per group, with a `MatchReasons` column
-- `vendor-group-audit.html` — grouped by domain and confidence, reasons highlighted
+- `vendor-group-discovery.csv` — one row per group, with a `MatchReasons` column
+- `vendor-group-discovery.html` — grouped by domain and confidence, reasons highlighted
 - Console summary — counts per domain / band / reason, plus failed domains
 
 Report cells are hardened against CSV formula injection and HTML is escaped against

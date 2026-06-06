@@ -1,8 +1,8 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    . "$PSScriptRoot/fixtures/Import-AuditFixture.ps1"
+    . "$PSScriptRoot/fixtures/Import-DiscoveryFixture.ps1"
     $script:fixtureDir = Join-Path $PSScriptRoot 'fixtures'
-    $script:data       = Get-FixtureAuditData -FixtureDir $script:fixtureDir
+    $script:data       = Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
 
     # Hand-authored oracle (kept in sync with tests/fixtures/README.md).
     $script:expectedBand = @{
@@ -24,18 +24,18 @@ BeforeAll {
     )
 }
 
-Describe 'Fixture: engine pipeline (Northwind audit)' {
+Describe 'Fixture: engine pipeline (Northwind discovery)' {
     BeforeAll {
-        $auditInput = $script:data.InputData
+        $discoveryInput = $script:data.InputData
         $knownKeys = @{}
-        foreach ($k in $auditInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
         $excludeKeys = @{}
-        foreach ($e in $auditInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
 
-        $cand = Find-CandidateGroups -Groups $script:data.Groups -Keywords $auditInput.Keywords `
+        $cand = Find-CandidateGroups -Groups $script:data.Groups -Keywords $discoveryInput.Keywords `
             -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
         $cand = Expand-VendorGroupClosure -Results $cand
-        $sel  = Select-AuditResults -Results $cand
+        $sel  = Select-DiscoveryResults -Results $cand
         $sel  = Resolve-ResultDisplay -Results $sel -DnIndex $script:data.DnIndex -VendorUsers $script:data.VendorUsers
 
         $script:cand = $cand
@@ -93,7 +93,7 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
     }
 
     It 'MinimumConfidence High keeps Confirmed+High and drops Medium' {
-        $high = Select-AuditResults -Results $script:cand -MinimumConfidence 'High'
+        $high = Select-DiscoveryResults -Results $script:cand -MinimumConfidence 'High'
         $high.Count | Should -Be 9
         $high.Name  | Should -Not -Contain 'Global Logistics Stewards'   # Medium -> dropped
         $high.Name  | Should -Contain 'Project Atlas Team'               # Confirmed -> kept
@@ -101,16 +101,16 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
 
     It 'SecurityGroupsOnly drops the distribution group (Northwind Support)' {
         $secGroups = @($script:data.Groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' })
-        $auditInput = $script:data.InputData
+        $discoveryInput = $script:data.InputData
         $knownKeys = @{}
-        foreach ($k in $auditInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
         $excludeKeys = @{}
-        foreach ($e in $auditInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
 
-        $c = Find-CandidateGroups -Groups $secGroups -Keywords $auditInput.Keywords `
+        $c = Find-CandidateGroups -Groups $secGroups -Keywords $discoveryInput.Keywords `
             -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
         $c = Expand-VendorGroupClosure -Results $c
-        $s = Select-AuditResults -Results $c
+        $s = Select-DiscoveryResults -Results $c
 
         $s.Count | Should -Be 9
         $s.Name  | Should -Not -Contain 'Northwind Support'
@@ -118,11 +118,11 @@ Describe 'Fixture: engine pipeline (Northwind audit)' {
     }
 }
 
-Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
+Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     BeforeAll {
         $script:outDir = Join-Path ([System.IO.Path]::GetTempPath()) ("fx_" + [guid]::NewGuid())
-        Mock -CommandName Get-AdAuditData -MockWith {
-            $d = Get-FixtureAuditData -FixtureDir $script:fixtureDir
+        Mock -CommandName Get-AdDiscoveryData -MockWith {
+            $d = Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
             [pscustomobject]@{
                 Groups        = $d.Groups
                 VendorUsers   = $d.VendorUsers
@@ -131,8 +131,8 @@ Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
                 Warnings      = @()
             }
         }
-        $inDir = Join-Path $script:fixtureDir 'audit-input'
-        Invoke-AdVendorGroupAudit `
+        $inDir = Join-Path $script:fixtureDir 'discovery-input'
+        Find-VendorAdGroup `
             -UsersCsv        (Join-Path $inDir 'users.csv') `
             -DomainsCsv      (Join-Path $inDir 'domains.csv') `
             -KeywordsCsv     (Join-Path $inDir 'keywords.csv') `
@@ -140,8 +140,8 @@ Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
             -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv') `
             -OutputDirectory $script:outDir -Formats @('Csv','Html') | Out-Null
 
-        $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-audit.csv'))
-        $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-audit.html') -Raw
+        $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery.csv'))
+        $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-discovery.html') -Raw
     }
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 

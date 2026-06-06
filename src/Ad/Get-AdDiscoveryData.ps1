@@ -1,4 +1,4 @@
-function Get-AdAuditData {
+function Get-AdDiscoveryData {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$InputData,

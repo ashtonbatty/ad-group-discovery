@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Generates the AD Vendor Group Audit test fixture: a simulated multi-domain
-    directory (directory.json) plus the five audit-input CSVs for auditing the
+    Generates the Vendor AD Group Discovery test fixture: a simulated multi-domain
+    directory (directory.json) plus the five discovery-input CSVs for discovering the
     primary vendor (Northwind Traders).
 
 .DESCRIPTION
@@ -10,7 +10,7 @@
 
     Scenario:
       * 4 domains in the Globex forest, with inconsistent naming/TLDs.
-      * 4 organisations: 3 vendors (Northwind Traders [PRIMARY/audited], Contoso,
+      * 4 organisations: 3 vendors (Northwind Traders [PRIMARY/discovered], Contoso,
         Fabrikam) and the customer org (Globex, non-vendor).
       * 40 users (20 Northwind, 7 Contoso, 7 Fabrikam, 6 Globex).
       * 20 groups (10 Northwind-related, 10 other).
@@ -22,7 +22,7 @@
     See README.md in this folder for the planted matches and expected results.
 
 .PARAMETER OutDir
-    Directory to write directory.json and audit-input/*.csv into. Defaults to the
+    Directory to write directory.json and discovery-input/*.csv into. Defaults to the
     folder containing this script.
 #>
 [CmdletBinding()]
@@ -206,8 +206,8 @@ $directory = [pscustomobject]@{
 }
 $directory | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDir 'directory.json') -Encoding UTF8
 
-# --- Emit audit-input CSVs (auditing the PRIMARY vendor: Northwind) -----------
-$inputDir = Join-Path $OutDir 'audit-input'
+# --- Emit discovery-input CSVs (discovering the PRIMARY vendor: Northwind) -----------
+$inputDir = Join-Path $OutDir 'discovery-input'
 if (-not (Test-Path -LiteralPath $inputDir)) { New-Item -ItemType Directory -Path $inputDir | Out-Null }
 
 # users.csv - the 20 Northwind users
@@ -215,7 +215,7 @@ $users | Where-Object Org -eq 'Northwind' |
     Select-Object SamAccountName, DisplayName |
     Export-Csv -LiteralPath (Join-Path $inputDir 'users.csv') -NoTypeInformation -Encoding UTF8
 
-# domains.csv - all four audited domains
+# domains.csv - all four discovered domains
 @($domMeta.GetEnumerator() | ForEach-Object {
     [pscustomobject]@{ Domain = $_.Value.Fqdn; Server = $_.Value.Server; Name = $_.Value.Name }
 }) | Export-Csv -LiteralPath (Join-Path $inputDir 'domains.csv') -NoTypeInformation -Encoding UTF8
@@ -236,4 +236,4 @@ $users | Where-Object Org -eq 'Northwind' |
 
 Write-Host "Fixture written: $((Join-Path $OutDir 'directory.json'))"
 Write-Host "  users=$($users.Count) groups=$($groups.Count) domains=$($domMeta.Count)"
-Write-Host "Audit-input CSVs written to: $inputDir"
+Write-Host "Discovery-input CSVs written to: $inputDir"

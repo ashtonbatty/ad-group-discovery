@@ -1,17 +1,17 @@
-# Audit test fixture
+# Discovery test fixture
 
 A self-consistent, multi-domain Active Directory scenario for exercising the
-AD Vendor Group Audit engine without a live directory.
+Vendor AD Group Discovery engine without a live directory.
 
 ## Files
 
 | File | What it is |
 |------|------------|
-| `New-AuditFixture.ps1` | Deterministic generator. Re-run to regenerate everything below. |
-| `directory.json` | The simulated directory: 4 domains, 40 users, 20 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdAuditData` would return from a real forest. |
-| `audit-input/*.csv` | The five audit-input lists for auditing the **primary vendor (Northwind Traders)**: `users.csv`, `domains.csv`, `keywords.csv`, `known.csv`, `exclude.csv`. |
-| `Import-AuditFixture.ps1` | Loader bridge: turns the JSON + CSVs into a `Get-AdAuditData`-shaped object (`Groups`, `VendorUsers` with `Tokens`, `DnIndex`, …) so the rest of the pipeline runs with no AD and no mocking. |
-| `Show-FixtureAudit.ps1` | Runnable demo / smoke test that runs the engine over the fixture and prints the surfaced groups. |
+| `New-DiscoveryFixture.ps1` | Deterministic generator. Re-run to regenerate everything below. |
+| `directory.json` | The simulated directory: 4 domains, 40 users, 20 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdDiscoveryData` would return from a real forest. |
+| `discovery-input/*.csv` | The five discovery-input lists for discovering the **primary vendor (Northwind Traders)**: `users.csv`, `domains.csv`, `keywords.csv`, `known.csv`, `exclude.csv`. |
+| `Import-DiscoveryFixture.ps1` | Loader bridge: turns the JSON + CSVs into a `Get-AdDiscoveryData`-shaped object (`Groups`, `VendorUsers` with `Tokens`, `DnIndex`, …) so the rest of the pipeline runs with no AD and no mocking. |
+| `Show-FixtureDiscovery.ps1` | Runnable demo / smoke test that runs the engine over the fixture and prints the surfaced groups. |
 
 Not wired into the Pester suite yet — these are data + helpers you can point tests at.
 
@@ -27,7 +27,7 @@ naming/TLDs and two different group-organisation conventions:
 | `apac.globex.local` | **B** | Every group in a single flat `OU=Groups`. |
 | `dmz.globex.net` | **B** | Every group in a single flat `OU=Groups`. |
 
-**Organisations (4):** three vendors — **Northwind Traders** (the audited vendor),
+**Organisations (4):** three vendors — **Northwind Traders** (the discovered vendor),
 **Contoso**, **Fabrikam** — plus the customer org **Globex** (non-vendor).
 
 **Users (40):** 20 Northwind, 7 Contoso, 7 Fabrikam, 6 Globex — spread across all
@@ -36,9 +36,9 @@ or `CN=Users` (structure B); Globex staff in `OU=Staff` / `CN=Users`.
 
 **Groups (20):** 10 Northwind-related, 10 other (Contoso ×3, Fabrikam ×3, Globex ×4).
 
-So **half the users and half the groups belong to the audited vendor**, as required.
+So **half the users and half the groups belong to the discovered vendor**, as required.
 
-## Auditing Northwind Traders
+## Discovering Northwind Traders
 
 `keywords.csv` = `Northwind`, `Northwind Traders`, `NWT`.
 `known.csv` = `Project Atlas Team` (corp). `exclude.csv` = `All Staff` (apac),
@@ -48,7 +48,7 @@ So **half the users and half the groups belong to the audited vendor**, as requi
 
 Running the engine over this fixture for Northwind surfaces **exactly the 10
 Northwind-related groups** and none of the decoys. Each row below is what
-`Show-FixtureAudit.ps1` prints:
+`Show-FixtureDiscovery.ps1` prints:
 
 | Group | Domain | Band | Why it matched |
 |-------|--------|------|----------------|
@@ -80,16 +80,16 @@ security-vs-distribution filtering · flat-vs-foldered directory structures.
 
 ```powershell
 # End-to-end demo (no live AD):
-pwsh -NoProfile -File ./tests/fixtures/Show-FixtureAudit.ps1
+pwsh -NoProfile -File ./tests/fixtures/Show-FixtureDiscovery.ps1
 
-# In your own test/script, get a Get-AdAuditData-shaped object from the fixture:
+# In your own test/script, get a Get-AdDiscoveryData-shaped object from the fixture:
 . ./tests/_TestHelpers.ps1                 # loads the engine functions
-. ./tests/fixtures/Import-AuditFixture.ps1
-$data = Get-FixtureAuditData               # .Groups, .VendorUsers, .DnIndex, .InputData
+. ./tests/fixtures/Import-DiscoveryFixture.ps1
+$data = Get-FixtureDiscoveryData               # .Groups, .VendorUsers, .DnIndex, .InputData
 ```
 
-To regenerate after editing the data tables in `New-AuditFixture.ps1`:
+To regenerate after editing the data tables in `New-DiscoveryFixture.ps1`:
 
 ```powershell
-pwsh -NoProfile -File ./tests/fixtures/New-AuditFixture.ps1
+pwsh -NoProfile -File ./tests/fixtures/New-DiscoveryFixture.ps1
 ```

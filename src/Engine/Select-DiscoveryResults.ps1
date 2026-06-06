@@ -1,4 +1,4 @@
-function Select-AuditResults {
+function Select-DiscoveryResults {
     [CmdletBinding()]
     param([object[]]$Results, [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low')
     $rank = Get-ConfidenceRank

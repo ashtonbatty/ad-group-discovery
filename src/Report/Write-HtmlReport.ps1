@@ -32,9 +32,9 @@ th{background:#f2f2f2}
 '@
 
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine('<!DOCTYPE html><html><head><meta charset="utf-8"><title>AD Vendor Group Audit</title>')
+    [void]$sb.AppendLine('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vendor AD Group Discovery</title>')
     [void]$sb.AppendLine($css); [void]$sb.AppendLine('</head><body>')
-    [void]$sb.AppendLine('<h1>AD Vendor Group Audit</h1>')
+    [void]$sb.AppendLine('<h1>Vendor AD Group Discovery</h1>')
     [void]$sb.AppendLine('<div class="summary">')
     [void]$sb.AppendLine("<div>Generated: $(Get-HtmlEncoded "$($Summary.GeneratedAt)")</div>")
     [void]$sb.AppendLine("<div>Groups reported: $($Summary.TotalGroups)</div>")

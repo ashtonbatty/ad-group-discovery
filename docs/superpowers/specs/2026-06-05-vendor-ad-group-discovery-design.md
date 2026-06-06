@@ -1,14 +1,14 @@
-# AD Vendor Group Audit — Design
+# Vendor AD Group Discovery — Design
 
 **Date:** 2026-06-05
 **Status:** Approved (brainstorming complete; ready for implementation plan)
 
 ## Purpose
 
-Audit Active Directory across multiple domains to discover the groups that belong
+Discovery Active Directory across multiple domains to discover the groups that belong
 to — or are used by — a specific vendor, in a large multi-vendor environment with
 inconsistent organisation, structure, and naming conventions. Produce a report of
-the discovered and known groups with the detail an auditor needs to triage them.
+the discovered and known groups with the detail an discoverer needs to triage them.
 
 Primary language: **PowerShell 5.1**, using the **RSAT ActiveDirectory module**.
 Standard .NET assemblies may be used where helpful.
@@ -38,12 +38,12 @@ result shape and are independently swappable.
 ### File layout
 
 ```
-ad_group_audit2/
-  Invoke-AdVendorGroupAudit.ps1     # thin runner: parses params, loads module, calls public fn
-  AdVendorGroupAudit.psd1 / .psm1   # module manifest + root; exports Invoke-AdVendorGroupAudit
+ad-group-discovery/
+  Find-VendorAdGroup.ps1     # thin runner: parses params, loads module, calls public fn
+  VendorAdGroupDiscovery.psd1 / .psm1   # module manifest + root; exports Find-VendorAdGroup
   src/
-    Input/    Read-AuditInput.ps1            # read + validate the 5 CSVs
-    Ad/       Get-AdAuditData.ps1            # ONLY code touching Get-AD* (the adapter)
+    Input/    Read-DiscoveryInput.ps1            # read + validate the 5 CSVs
+    Ad/       Get-AdDiscoveryData.ps1            # ONLY code touching Get-AD* (the adapter)
               Resolve-DirectoryIndex.ps1     # build DN/SID -> name maps across domains
     Engine/   Find-CandidateGroups.ps1       # pure matchers (one fn per pattern)
               Get-MatchConfidence.ps1        # scoring + banding
@@ -60,9 +60,9 @@ ad_group_audit2/
 
 ### Layers
 
-1. **Input layer** (`Read-AuditInput.ps1`) — reads and validates the five CSVs,
+1. **Input layer** (`Read-DiscoveryInput.ps1`) — reads and validates the five CSVs,
    returns a normalized input object.
-2. **AD adapter** (`Get-AdAuditData.ps1`, `Resolve-DirectoryIndex.ps1`) — the only
+2. **AD adapter** (`Get-AdDiscoveryData.ps1`, `Resolve-DirectoryIndex.ps1`) — the only
    code that calls `Get-AD*`. Bulk-loads groups and resolves identities.
 3. **Matching engine** (`Find-CandidateGroups.ps1`, `Get-MatchConfidence.ps1`,
    `Expand-VendorGroupClosure.ps1`) — pure functions producing annotated candidates.
@@ -76,14 +76,14 @@ Per domain (`-Server <domain>`, optional `-Credential`):
   `Get-ADGroup -Filter * -Properties description, info, managedBy, member, memberOf,
   groupScope, groupCategory, mail, adminCount, whenCreated, whenChanged,
   distinguishedName`.
-- **Resolve vendor users:** look up each `SamAccountName` in every audited domain;
+- **Resolve vendor users:** look up each `SamAccountName` in every discovered domain;
   pull `displayName, givenName, sn, cn, name, userPrincipalName, mail,
   distinguishedName, objectSid`. Build an **identity token set** per user from the
   AD-authoritative values **plus** the CSV-supplied `DisplayName` as alternates
   (handles messy/stale data).
 - **Directory index:** global `DN → name` and `SID → name` maps spanning **all**
-  audited domains (users *and* groups), so members, owners, and `memberOf` resolve
-  cross-domain. Foreign SIDs from non-audited domains are shown raw with an
+  discovered domains (users *and* groups), so members, owners, and `memberOf` resolve
+  cross-domain. Foreign SIDs from non-discovered domains are shown raw with an
   `[unresolved]` note. Lookups are cached.
 
 ## Matching patterns
@@ -115,7 +115,7 @@ member matches sum, with a cap). Banding:
 - **Low** — score = 1.
 
 Every result carries its numeric **score** and the full list of **match reasons**,
-so the auditor can triage and see exactly why each group surfaced.
+so the discoverer can triage and see exactly why each group surfaced.
 
 ## Nesting closure
 
@@ -124,7 +124,7 @@ iterated to closure:
 
 - **Seeds** = known groups ∪ groups scoring ≥ 2 from *direct* (non-propagated)
   signals.
-- For each confirmed vendor group, its `memberOf` entries (within audited domains)
+- For each confirmed vendor group, its `memberOf` entries (within discovered domains)
   become candidates with the reason "contains vendor group X" (+2).
 - Repeat until no new groups are added. A visited-set makes it cycle-safe, and a
   `-MaxIterations` cap (default 25) bounds it so it cannot run away.
@@ -154,7 +154,7 @@ All three writers consume the same result collection:
 Output code is kept cleanly separated from input and processing code so writers can
 be added, removed, or replaced without touching the engine.
 
-## Public parameters (`Invoke-AdVendorGroupAudit`)
+## Public parameters (`Find-VendorAdGroup`)
 
 ```
 -UsersCsv -DomainsCsv -KeywordsCsv -KnownGroupsCsv -ExcludeGroupsCsv
@@ -197,5 +197,5 @@ boundary makes this swap local.
 
 - Per-domain distinct credentials (single optional `-Credential` for now).
 - Recursive member expansion in the report (direct members only).
-- Writing changes back to AD — this is read-only audit tooling.
+- Writing changes back to AD — this is read-only discovery tooling.
 - Excel (.xlsx) output — CSV + HTML + console cover the stated needs.

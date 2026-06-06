@@ -1,10 +1,10 @@
-# Wire the Audit Fixture into Integration Tests — Implementation Plan
+# Wire the Discovery Fixture into Integration Tests — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a fixture-backed integration test file (`tests/Fixture.Tests.ps1`) that drives the engine pipeline and the public `Invoke-AdVendorGroupAudit` over the realistic multi-domain fixture, asserting the documented result oracle exactly.
+**Goal:** Add a fixture-backed integration test file (`tests/Fixture.Tests.ps1`) that drives the engine pipeline and the public `Find-VendorAdGroup` over the realistic multi-domain fixture, asserting the documented result oracle exactly.
 
-**Architecture:** One new Pester 5 file with two `Describe` blocks. A top-level `BeforeAll` loads the engine functions and the fixture loader and defines a hand-authored oracle. Describe 1 runs `Find-CandidateGroups → Expand-VendorGroupClosure → Select-AuditResults → Resolve-ResultDisplay` over the fixture; Describe 2 mocks `Get-AdAuditData` to return the fixture and runs the public function, asserting the CSV/HTML reports. These are characterization/integration tests over already-working code, so each new assertion is expected to PASS immediately; a failure means the oracle or the engine drifted.
+**Architecture:** One new Pester 5 file with two `Describe` blocks. A top-level `BeforeAll` loads the engine functions and the fixture loader and defines a hand-authored oracle. Describe 1 runs `Find-CandidateGroups → Expand-VendorGroupClosure → Select-DiscoveryResults → Resolve-ResultDisplay` over the fixture; Describe 2 mocks `Get-AdDiscoveryData` to return the fixture and runs the public function, asserting the CSV/HTML reports. These are characterization/integration tests over already-working code, so each new assertion is expected to PASS immediately; a failure means the oracle or the engine drifted.
 
 **Tech Stack:** Windows PowerShell 5.1 target (tests run under pwsh 7.6), Pester 5.7, PSScriptAnalyzer.
 
@@ -14,14 +14,14 @@
 
 - Run a single file: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests/Fixture.Tests.ps1 -Output Detailed"`.
 - Run the whole suite: `pwsh -NoProfile -Command "Invoke-Pester -Path ./tests -Output Detailed"`.
-- **Do NOT name any variable `$input`** — it is a PowerShell automatic variable and PSScriptAnalyzer flags it. Use `$auditInput`.
+- **Do NOT name any variable `$input`** — it is a PowerShell automatic variable and PSScriptAnalyzer flags it. Use `$discoveryInput`.
 - Cross-`Describe`/`It` variables set in a `BeforeAll` must use the `$script:` scope to be visible in `It` blocks (Pester 5 scoping).
-- Work from `/var/home/ashton/dev/misc/powershell/ad_group_audit2`. The git repo root is the working directory. ONLY `git add` the file(s) listed per task — never `git add .` / `-A`.
+- Work from `/var/home/ashton/dev/misc/powershell/ad-group-discovery`. The git repo root is the working directory. ONLY `git add` the file(s) listed per task — never `git add .` / `-A`.
 - End each commit message body with: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
-## Fixture facts the assertions rely on (already verified by `tests/fixtures/Show-FixtureAudit.ps1`)
+## Fixture facts the assertions rely on (already verified by `tests/fixtures/Show-FixtureDiscovery.ps1`)
 
-Auditing **Northwind Traders** surfaces exactly these 10 groups:
+Discovering **Northwind Traders** surfaces exactly these 10 groups:
 
 | Group | Band | Domain |
 |---|---|---|
@@ -59,9 +59,9 @@ Specific facts:
 ```powershell
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    . "$PSScriptRoot/fixtures/Import-AuditFixture.ps1"
+    . "$PSScriptRoot/fixtures/Import-DiscoveryFixture.ps1"
     $script:fixtureDir = Join-Path $PSScriptRoot 'fixtures'
-    $script:data       = Get-FixtureAuditData -FixtureDir $script:fixtureDir
+    $script:data       = Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
 
     # Hand-authored oracle (kept in sync with tests/fixtures/README.md).
     $script:expectedBand = @{
@@ -83,18 +83,18 @@ BeforeAll {
     )
 }
 
-Describe 'Fixture: engine pipeline (Northwind audit)' {
+Describe 'Fixture: engine pipeline (Northwind discovery)' {
     BeforeAll {
-        $auditInput = $script:data.InputData
+        $discoveryInput = $script:data.InputData
         $knownKeys = @{}
-        foreach ($k in $auditInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
         $excludeKeys = @{}
-        foreach ($e in $auditInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
 
-        $cand = Find-CandidateGroups -Groups $script:data.Groups -Keywords $auditInput.Keywords `
+        $cand = Find-CandidateGroups -Groups $script:data.Groups -Keywords $discoveryInput.Keywords `
             -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
         $cand = Expand-VendorGroupClosure -Results $cand
-        $sel  = Select-AuditResults -Results $cand
+        $sel  = Select-DiscoveryResults -Results $cand
         $sel  = Resolve-ResultDisplay -Results $sel -DnIndex $script:data.DnIndex -VendorUsers $script:data.VendorUsers
 
         $script:cand = $cand
@@ -132,7 +132,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Files:**
 - Modify: `tests/Fixture.Tests.ps1`
 
-- [ ] **Step 1: Add these `It` blocks inside `Describe 'Fixture: engine pipeline (Northwind audit)'`, immediately after the existing "surfaces exactly the 10 expected groups" test and before the Describe's closing `}`**
+- [ ] **Step 1: Add these `It` blocks inside `Describe 'Fixture: engine pipeline (Northwind discovery)'`, immediately after the existing "surfaces exactly the 10 expected groups" test and before the Describe's closing `}`**
 
 ```powershell
     It 'assigns each surfaced group its expected confidence band' {
@@ -199,11 +199,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 **Files:**
 - Modify: `tests/Fixture.Tests.ps1`
 
-- [ ] **Step 1: Add these `It` blocks inside the same `Describe 'Fixture: engine pipeline (Northwind audit)'`, after the decoy test and before the Describe's closing `}`**
+- [ ] **Step 1: Add these `It` blocks inside the same `Describe 'Fixture: engine pipeline (Northwind discovery)'`, after the decoy test and before the Describe's closing `}`**
 
 ```powershell
     It 'MinimumConfidence High keeps Confirmed+High and drops Medium' {
-        $high = Select-AuditResults -Results $script:cand -MinimumConfidence 'High'
+        $high = Select-DiscoveryResults -Results $script:cand -MinimumConfidence 'High'
         $high.Count | Should -Be 9
         $high.Name  | Should -Not -Contain 'Global Logistics Stewards'   # Medium -> dropped
         $high.Name  | Should -Contain 'Project Atlas Team'               # Confirmed -> kept
@@ -211,16 +211,16 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
     It 'SecurityGroupsOnly drops the distribution group (Northwind Support)' {
         $secGroups = @($script:data.Groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' })
-        $auditInput = $script:data.InputData
+        $discoveryInput = $script:data.InputData
         $knownKeys = @{}
-        foreach ($k in $auditInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
         $excludeKeys = @{}
-        foreach ($e in $auditInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
 
-        $c = Find-CandidateGroups -Groups $secGroups -Keywords $auditInput.Keywords `
+        $c = Find-CandidateGroups -Groups $secGroups -Keywords $discoveryInput.Keywords `
             -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
         $c = Expand-VendorGroupClosure -Results $c
-        $s = Select-AuditResults -Results $c
+        $s = Select-DiscoveryResults -Results $c
 
         $s.Count | Should -Be 9
         $s.Name  | Should -Not -Contain 'Northwind Support'
@@ -244,7 +244,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 4: Describe 2 — public `Invoke-AdVendorGroupAudit` path, then full suite + lint
+## Task 4: Describe 2 — public `Find-VendorAdGroup` path, then full suite + lint
 
 **Files:**
 - Modify: `tests/Fixture.Tests.ps1`
@@ -252,11 +252,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - [ ] **Step 1: Append this second `Describe` block to the END of `tests/Fixture.Tests.ps1` (after the closing `}` of Describe 1)**
 
 ```powershell
-Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
+Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     BeforeAll {
         $script:outDir = Join-Path ([System.IO.Path]::GetTempPath()) ("fx_" + [guid]::NewGuid())
-        Mock -CommandName Get-AdAuditData -MockWith {
-            $d = Get-FixtureAuditData -FixtureDir $script:fixtureDir
+        Mock -CommandName Get-AdDiscoveryData -MockWith {
+            $d = Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
             [pscustomobject]@{
                 Groups        = $d.Groups
                 VendorUsers   = $d.VendorUsers
@@ -265,8 +265,8 @@ Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
                 Warnings      = @()
             }
         }
-        $inDir = Join-Path $script:fixtureDir 'audit-input'
-        Invoke-AdVendorGroupAudit `
+        $inDir = Join-Path $script:fixtureDir 'discovery-input'
+        Find-VendorAdGroup `
             -UsersCsv        (Join-Path $inDir 'users.csv') `
             -DomainsCsv      (Join-Path $inDir 'domains.csv') `
             -KeywordsCsv     (Join-Path $inDir 'keywords.csv') `
@@ -274,8 +274,8 @@ Describe 'Fixture: public Invoke-AdVendorGroupAudit (Northwind audit)' {
             -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv') `
             -OutputDirectory $script:outDir -Formats @('Csv','Html') | Out-Null
 
-        $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-audit.csv'))
-        $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-audit.html') -Raw
+        $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery.csv'))
+        $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-discovery.html') -Raw
     }
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 
@@ -325,13 +325,13 @@ Expected: all pass (62 existing + 16 new = 78).
 - [ ] **Step 4: Run PSScriptAnalyzer and confirm clean**
 
 Run: `pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path ./tests/Fixture.Tests.ps1 -Settings ./PSScriptAnalyzerSettings.psd1"`
-Expected: no output. (If `PSAvoidAssignmentToAutomaticVariable` fires, you used `$input` somewhere — rename to `$auditInput` and re-run.)
+Expected: no output. (If `PSAvoidAssignmentToAutomaticVariable` fires, you used `$input` somewhere — rename to `$discoveryInput` and re-run.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add tests/Fixture.Tests.ps1
-git commit -m "test: assert public Invoke-AdVendorGroupAudit CSV/HTML output over fixture
+git commit -m "test: assert public Find-VendorAdGroup CSV/HTML output over fixture
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
@@ -342,4 +342,4 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 - **Spec coverage:** Describe 1 setup + exact-10 (Task 1); band-per-group, closure, known, cross-domain SID, description-user, precision, vendor-member flag (Task 2); MinimumConfidence + SecurityGroupsOnly (Task 3); public CSV row count, closure-in-CSV, known-in-CSV, decoy-absent, vendor-`*`-in-CSV, HTML populated + 4 domain headers (Task 4). Every spec `It` is present. Console-only assertions intentionally omitted (covered by `Write-ConsoleSummary.Tests.ps1`), per spec.
 - **Placeholder scan:** none — every step ships complete, runnable code and exact commands.
-- **Type/name consistency:** `$script:data` (.Groups/.VendorUsers/.DnIndex/.InputData), `$script:expectedBand`, `$script:absent`, `$script:cand`, `$script:sel`, `$script:byName`, `$script:fixtureDir`, `$script:outDir`, `$script:csvRows`, `$script:html` are used consistently across tasks. Helper/function names (`Get-FixtureAuditData`, `Get-GroupLookupKey`, `Find-CandidateGroups`, `Expand-VendorGroupClosure`, `Select-AuditResults`, `Resolve-ResultDisplay`, `Invoke-AdVendorGroupAudit`, `Get-AdAuditData`) match the existing source. No `$input` variable used (automatic-variable hazard avoided).
+- **Type/name consistency:** `$script:data` (.Groups/.VendorUsers/.DnIndex/.InputData), `$script:expectedBand`, `$script:absent`, `$script:cand`, `$script:sel`, `$script:byName`, `$script:fixtureDir`, `$script:outDir`, `$script:csvRows`, `$script:html` are used consistently across tasks. Helper/function names (`Get-FixtureDiscoveryData`, `Get-GroupLookupKey`, `Find-CandidateGroups`, `Expand-VendorGroupClosure`, `Select-DiscoveryResults`, `Resolve-ResultDisplay`, `Find-VendorAdGroup`, `Get-AdDiscoveryData`) match the existing source. No `$input` variable used (automatic-variable hazard avoided).

@@ -11,14 +11,14 @@ BeforeAll {
     }
 }
 
-Describe 'Select-AuditResults' {
+Describe 'Select-DiscoveryResults' {
     It 'drops None and keeps Low+ by default' {
         $in = @((New-R 'a' 'None'), (New-R 'b' 'Low'), (New-R 'c' 'High'))
-        (Select-AuditResults -Results $in).Name | Should -Be @('b','c')
+        (Select-DiscoveryResults -Results $in).Name | Should -Be @('b','c')
     }
     It 'honours a higher MinimumConfidence' {
         $in = @((New-R 'b' 'Low'), (New-R 'c' 'High'))
-        (Select-AuditResults -Results $in -MinimumConfidence 'High').Name | Should -Be @('c')
+        (Select-DiscoveryResults -Results $in -MinimumConfidence 'High').Name | Should -Be @('c')
     }
 }
 
