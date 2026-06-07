@@ -11,11 +11,16 @@ function Read-DiscoveryInput {
     function Read-Csv([string]$Path, [string[]]$Required) {
         if (-not (Test-Path -LiteralPath $Path)) { throw "Input file not found: $Path" }
         $rows = @(Import-Csv -LiteralPath $Path)
-        if ($rows.Count -gt 0) {
-            $cols = $rows[0].PSObject.Properties.Name
-            foreach ($c in $Required) {
-                if ($cols -notcontains $c) { throw "File '$Path' is missing required column '$c'." }
-            }
+        $cols = if ($rows.Count -gt 0) {
+            @($rows[0].PSObject.Properties.Name)
+        } else {
+            # No data rows — read the header line directly so column validation still runs.
+            $headerLine = Get-Content -LiteralPath $Path -TotalCount 1 -ErrorAction SilentlyContinue
+            if ([string]::IsNullOrWhiteSpace($headerLine)) { return $rows }   # truly empty file
+            @((($headerLine, $headerLine) | ConvertFrom-Csv | Select-Object -First 1).PSObject.Properties.Name)
+        }
+        foreach ($c in $Required) {
+            if ($cols -notcontains $c) { throw "File '$Path' is missing required column '$c'." }
         }
         return $rows
     }

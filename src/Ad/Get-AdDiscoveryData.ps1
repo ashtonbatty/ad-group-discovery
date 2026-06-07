@@ -12,7 +12,7 @@ function Get-AdDiscoveryData {
     $vendorUsers  = New-Object System.Collections.Generic.List[object]
     $failedDomains = @()
     $warnings     = @()
-    $sidSeen      = @{}   # SamAccountName -> already resolved (dedupe across domains)
+    $sidSeen      = @{}   # objectSid string -> already resolved (dedupe same physical user across domains)
 
     foreach ($d in $InputData.Domains) {
         $server = if ($d.Server) { $d.Server } else { $d.Domain }
@@ -34,12 +34,12 @@ function Get-AdDiscoveryData {
         } catch {
             $failedDomains += $d.Domain
             $warnings += "Failed to query groups in '$($d.Domain)': $($_.Exception.Message)"
-            continue
+            # Do NOT continue — vendor-user resolution below is independent of group enumeration.
         }
 
         foreach ($csvUser in $InputData.Users) {
             $sam = $csvUser.SamAccountName
-            if ([string]::IsNullOrWhiteSpace($sam) -or $sidSeen.ContainsKey($sam.ToLower())) { continue }
+            if ([string]::IsNullOrWhiteSpace($sam)) { continue }
             if ($sam -match "['()*\\/]") {
                 $warnings += "Skipping user with suspicious SamAccountName '$sam'"
                 continue
@@ -52,14 +52,16 @@ function Get-AdDiscoveryData {
                 continue
             }
             if (-not $u) { continue }
-            $sidSeen[$sam.ToLower()] = $true
+            $sid = "$($u.objectSid)"
+            if ($sid -and $sidSeen.ContainsKey($sid)) { continue }   # same physical user already resolved
+            if ($sid) { $sidSeen[$sid] = $true }
             $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -DisplayName $u.displayName `
                 -GivenName $u.givenName -Surname $u.sn -Cn $u.cn -Name $u.name `
                 -Upn $u.userPrincipalName -Mail $u.mail -CsvDisplayName $csvUser.DisplayName
             $vendorUsers.Add([pscustomobject]@{
                 SamAccountName = $u.SamAccountName
                 DisplayName    = if ($u.displayName) { $u.displayName } else { $u.Name }
-                Sid            = "$($u.objectSid)"
+                Sid            = $sid
                 DistinguishedName = $u.DistinguishedName
                 Tokens         = $tokens
             })

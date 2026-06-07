@@ -54,8 +54,8 @@ th{background:#f2f2f2}
         $ordered = $dg.Group | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Name
         foreach ($r in $ordered) {
             $reasons = (@($r.Reasons) | ForEach-Object { "<span class='reason'>$(Get-HtmlEncoded "$($_.Pattern): $($_.Value)")</span>" }) -join ' '
-            [void]$sb.AppendLine("<tr class='$($r.Confidence)'>")
-            [void]$sb.AppendLine("<td>$($r.Confidence) ($($r.Score))</td>")
+            [void]$sb.AppendLine("<tr class=""$(Get-HtmlEncoded $r.Confidence)"">")
+            [void]$sb.AppendLine("<td>$(Get-HtmlEncoded $r.Confidence) ($(Get-HtmlEncoded ([string]$r.Score)))</td>")
             [void]$sb.AppendLine("<td>$(Get-HtmlEncoded $r.Name)</td>")
             [void]$sb.AppendLine("<td>$(Get-HtmlEncoded $r.Owner)</td>")
             [void]$sb.AppendLine("<td>$(Get-HtmlEncoded ((@($r.Members)) -join '; '))</td>")

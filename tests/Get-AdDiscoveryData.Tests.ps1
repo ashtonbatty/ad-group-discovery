@@ -54,4 +54,38 @@ Describe 'Get-AdDiscoveryData' {
         $data.VendorUsers.Count | Should -Be 0
         ($data.Warnings -join "`n") | Should -Match 'suspicious'
     }
+    It 'still resolves vendor users even when group enumeration fails for that domain' {
+        Mock -CommandName Get-ADGroup -MockWith { throw 'server down' }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.FailedDomains | Should -Contain 'corp.example.com'
+        $data.VendorUsers.Count | Should -Be 1
+    }
+    It 'resolves two users with the same SamAccountName from different domains independently' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'corp.example.com' } -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Corp)'; GivenName='John'; Surname='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@corp.example.com'; mail=$null
+                DistinguishedName='CN=jsmith,DC=corp,DC=example,DC=com'
+                objectSid='S-1-5-21-100-200-300-1001' }
+        }
+        Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'partner.example.com' } -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Partner)'; GivenName='John'; Surname='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@partner.example.com'; mail=$null
+                DistinguishedName='CN=jsmith,DC=partner,DC=example,DC=com'
+                objectSid='S-1-5-21-999-888-777-1001' }
+        }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';    Server='corp.example.com';    Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='partner.example.com'; Name='Partner' }
+            )
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.VendorUsers.Count | Should -Be 2
+    }
 }

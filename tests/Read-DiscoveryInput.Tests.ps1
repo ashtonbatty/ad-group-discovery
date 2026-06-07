@@ -33,4 +33,10 @@ Describe 'Read-DiscoveryInput' {
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
             Should -Throw '*SamAccountName*'
     }
+    It 'throws when a required column is absent even in a header-only CSV with no data rows' {
+        Set-Content "$tmp/header-only.csv" "WrongColumn"
+        { Read-DiscoveryInput -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/header-only.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
+            Should -Throw '*Domain*'
+    }
 }

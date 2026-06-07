@@ -16,7 +16,7 @@ function Get-MatchConfidence {
 
     if ($IsKnown)            { $confidence = 'Confirmed' }
     elseif ($score -ge 3)    { $confidence = 'High' }
-    elseif ($score -eq 2)    { $confidence = 'Medium' }
+    elseif ($score -ge 2)    { $confidence = 'Medium' }
     elseif ($score -ge 1)    { $confidence = 'Low' }
     else                     { $confidence = 'None' }
 

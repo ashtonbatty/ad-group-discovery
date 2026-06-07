@@ -17,10 +17,10 @@ function Expand-VendorGroupClosure {
                 if (-not $confirmed.ContainsKey($mk)) { continue }
                 $child = $confirmed[$mk]
                 if ($child.DistinguishedName -ieq $r.DistinguishedName) { continue }   # ignore self
-                $already = $r.Reasons | Where-Object { $_.Pattern -eq 'NestedVendorGroup' -and $_.Value -eq $child.Name }
+                $already = $r.Reasons | Where-Object { $_.Pattern -eq 'NestedVendorGroup' -and $_.ChildDn -ieq $child.DistinguishedName }
                 if ($already) { continue }
 
-                $r.Reasons = @($r.Reasons) + [pscustomobject]@{ Pattern = 'NestedVendorGroup'; Value = $child.Name }
+                $r.Reasons = @($r.Reasons) + [pscustomobject]@{ Pattern = 'NestedVendorGroup'; Value = $child.Name; ChildDn = $child.DistinguishedName }
                 $cc = Get-MatchConfidence -Reasons $r.Reasons -IsKnown:$r.IsKnown
                 $r.Score = $cc.Score
                 $r.Confidence = $cc.Confidence

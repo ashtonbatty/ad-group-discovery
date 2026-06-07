@@ -22,4 +22,10 @@ Describe 'Write-HtmlReport' {
         $html | Should -Match 'Acme &lt;Admins&gt;'   # HTML-escaped
         $html | Should -Match 'NameKeyword'
     }
+    It 'uses double-quoted class attribute for the confidence band' {
+        $path = Join-Path $tmp 'class.html'
+        Write-HtmlReport -Results $results -Summary $summary -Path $path
+        $html = Get-Content $path -Raw
+        $html | Should -Match 'class="High"'
+    }
 }

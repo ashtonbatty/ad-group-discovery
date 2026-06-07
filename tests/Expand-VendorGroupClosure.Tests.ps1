@@ -28,4 +28,16 @@ Describe 'Expand-VendorGroupClosure' {
         $b = New-Result 'B' 'CN=B,DC=c' 'CN=A,DC=c' 2 'Medium'
         { Expand-VendorGroupClosure -Results @($a,$b) -MaxIterations 25 } | Should -Not -Throw
     }
+    It 'adds a NestedVendorGroup reason for each distinct child even when children share the same Name' {
+        $child1 = [pscustomobject]@{ Domain='corp';    Name='Acme Admins'; DistinguishedName='CN=Acme Admins,DC=corp,DC=c'
+                                      Member=@(); Reasons=@(); Score=3; Confidence='High'; IsKnown=$false }
+        $child2 = [pscustomobject]@{ Domain='partner'; Name='Acme Admins'; DistinguishedName='CN=Acme Admins,DC=partner,DC=c'
+                                      Member=@(); Reasons=@(); Score=3; Confidence='High'; IsKnown=$false }
+        $parent = [pscustomobject]@{ Domain='corp'; Name='App Owners'; DistinguishedName='CN=App Owners,DC=c'
+                                      Member=@('CN=Acme Admins,DC=corp,DC=c','CN=Acme Admins,DC=partner,DC=c')
+                                      Reasons=@(); Score=0; Confidence='None'; IsKnown=$false }
+        $out = Expand-VendorGroupClosure -Results @($parent, $child1, $child2)
+        $p = $out | Where-Object Name -eq 'App Owners'
+        ($p.Reasons | Where-Object Pattern -eq 'NestedVendorGroup').Count | Should -Be 2
+    }
 }
