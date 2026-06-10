@@ -39,4 +39,16 @@ Describe 'Read-DiscoveryInput' {
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
             Should -Throw '*Domain*'
     }
+    It 'throws when the domains CSV is empty' {
+        New-Item -ItemType File -Path "$tmp/empty-domains.csv" | Out-Null
+        { Read-DiscoveryInput -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/empty-domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
+            Should -Throw '*Domain*'
+    }
+    It 'throws when the users CSV is empty' {
+        New-Item -ItemType File -Path "$tmp/empty-users.csv" | Out-Null
+        { Read-DiscoveryInput -UsersCsv "$tmp/empty-users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" } |
+            Should -Throw '*SamAccountName*'
+    }
 }

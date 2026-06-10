@@ -28,4 +28,19 @@ Describe 'Write-HtmlReport' {
         $html = Get-Content $path -Raw
         $html | Should -Match 'class="High"'
     }
+    It 'includes escaped warning messages in the summary' {
+        $path = Join-Path $tmp 'warnings.html'
+        $summaryWithWarnings = [pscustomobject]@{
+            TotalGroups = 1
+            FailedDomains = @()
+            Warnings = @("Lookup failed for user '<script>alert(1)</script>'")
+            GeneratedAt = '2026-06-05'
+        }
+        Write-HtmlReport -Results $results -Summary $summaryWithWarnings -Path $path
+        $html = Get-Content $path -Raw
+        $html | Should -Match 'Warnings: 1'
+        $html | Should -Match 'Lookup failed for user'
+        $html | Should -Match '&lt;script&gt;alert\(1\)&lt;/script&gt;'
+        $html | Should -Not -Match '<script>alert\(1\)</script>'
+    }
 }

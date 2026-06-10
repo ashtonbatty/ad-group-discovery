@@ -16,8 +16,11 @@ function Read-DiscoveryInput {
         } else {
             # No data rows — read the header line directly so column validation still runs.
             $headerLine = Get-Content -LiteralPath $Path -TotalCount 1 -ErrorAction SilentlyContinue
-            if ([string]::IsNullOrWhiteSpace($headerLine)) { return $rows }   # truly empty file
-            @((($headerLine, $headerLine) | ConvertFrom-Csv | Select-Object -First 1).PSObject.Properties.Name)
+            if ([string]::IsNullOrWhiteSpace($headerLine)) {
+                @()
+            } else {
+                @((($headerLine, $headerLine) | ConvertFrom-Csv | Select-Object -First 1).PSObject.Properties.Name)
+            }
         }
         foreach ($c in $Required) {
             if ($cols -notcontains $c) { throw "File '$Path' is missing required column '$c'." }
