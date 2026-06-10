@@ -10,8 +10,8 @@ function Get-AdDiscoveryData {
 
     $allGroups    = New-Object System.Collections.Generic.List[object]
     $vendorUsers  = New-Object System.Collections.Generic.List[object]
-    $failedDomains = @()
-    $warnings     = @()
+    $failedDomains = New-Object System.Collections.Generic.List[string]
+    $warnings      = New-Object System.Collections.Generic.List[string]
     $sidSeen      = @{}   # objectSid string -> already resolved (dedupe same physical user across domains)
 
     foreach ($d in $InputData.Domains) {
@@ -32,8 +32,8 @@ function Get-AdDiscoveryData {
                 })
             }
         } catch {
-            $failedDomains += $d.Domain
-            $warnings += "Failed to query groups in '$($d.Domain)': $($_.Exception.Message)"
+            $failedDomains.Add($d.Domain)
+            $warnings.Add("Failed to query groups in '$($d.Domain)': $($_.Exception.Message)")
             # Do NOT continue — vendor-user resolution below is independent of group enumeration.
         }
 
@@ -41,14 +41,13 @@ function Get-AdDiscoveryData {
             $sam = $csvUser.SamAccountName
             if ([string]::IsNullOrWhiteSpace($sam)) { continue }
             if ($sam -match "['()*\\/]") {
-                $warnings += "Skipping user with suspicious SamAccountName '$sam'"
+                $warnings.Add("Skipping user with suspicious SamAccountName '$sam'")
                 continue
             }
             try {
-                $samFilterValue = $sam
-                $u = Get-ADUser @common -Filter { SamAccountName -eq $samFilterValue } -Properties $userProps
+                $u = Get-ADUser @common -Filter { SamAccountName -eq $sam } -Properties $userProps
             } catch {
-                $warnings += "Lookup failed for user '$sam' in '$($d.Domain)': $($_.Exception.Message)"
+                $warnings.Add("Lookup failed for user '$sam' in '$($d.Domain)': $($_.Exception.Message)")
                 continue
             }
             if (-not $u) { continue }
@@ -74,7 +73,7 @@ function Get-AdDiscoveryData {
         Groups        = $groupsArr
         VendorUsers   = $usersArr
         DnIndex       = (Resolve-DirectoryIndex -VendorUsers $usersArr -Groups $groupsArr)
-        FailedDomains = $failedDomains
-        Warnings      = $warnings
+        FailedDomains = $failedDomains.ToArray()
+        Warnings      = $warnings.ToArray()
     }
 }

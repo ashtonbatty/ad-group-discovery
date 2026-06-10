@@ -1,7 +1,6 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("html_" + [guid]::NewGuid())
-    New-Item -ItemType Directory -Path $script:tmp | Out-Null
+    $script:tmp = New-TestTempDir -Prefix 'html'
     $script:results = @(
         [pscustomobject]@{ Domain='corp'; Name='Acme <Admins>'; DistinguishedName='CN=Acme Admins,DC=c'
             Description='Acme'; Info=''; Owner='John Smith'; Members=@('*John Smith'); MemberOfDisplay=@()

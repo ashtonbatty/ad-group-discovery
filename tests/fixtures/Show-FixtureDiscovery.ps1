@@ -21,19 +21,8 @@ $testsDir   = Split-Path -Parent $fixtureDir
 $data  = Get-FixtureDiscoveryData -FixtureDir $fixtureDir
 $discoveryInput = $data.InputData
 
-$knownKeys = @{}
-foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
-$excludeKeys = @{}
-foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
-
-$candidates = Find-CandidateGroups -Groups $data.Groups -Keywords $discoveryInput.Keywords `
-    -VendorUsers $data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-$candidates = Expand-VendorGroupClosure -Results $candidates
-$selected   = Select-DiscoveryResults -Results $candidates
-$selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
-
-$rank = Get-ConfidenceRank
-$selected = @($selected | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Domain, Name)
+$selected = Invoke-DiscoveryEngine -Groups $data.Groups -InputData $discoveryInput `
+    -VendorUsers $data.VendorUsers -DnIndex $data.DnIndex
 
 Write-Host ("Discovered vendor: Northwind Traders  |  domains={0} users={1} groups-in-directory={2}" -f `
     $discoveryInput.Domains.Count, $data.VendorUsers.Count, $data.Groups.Count)

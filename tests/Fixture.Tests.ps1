@@ -26,19 +26,9 @@ BeforeAll {
 
 Describe 'Fixture: engine pipeline (Northwind discovery)' {
     BeforeAll {
-        $discoveryInput = $script:data.InputData
-        $knownKeys = @{}
-        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
-        $excludeKeys = @{}
-        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+        $sel = Invoke-DiscoveryEngine -Groups $script:data.Groups -InputData $script:data.InputData `
+            -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex
 
-        $cand = Find-CandidateGroups -Groups $script:data.Groups -Keywords $discoveryInput.Keywords `
-            -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-        $cand = Expand-VendorGroupClosure -Results $cand
-        $sel  = Select-DiscoveryResults -Results $cand
-        $sel  = Resolve-ResultDisplay -Results $sel -DnIndex $script:data.DnIndex -VendorUsers $script:data.VendorUsers
-
-        $script:cand = $cand
         $script:sel  = $sel
         $script:byName = @{}
         foreach ($r in $sel) { $script:byName[$r.Name] = $r }
@@ -93,7 +83,8 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
     }
 
     It 'MinimumConfidence High keeps Confirmed+High and drops Medium' {
-        $high = Select-DiscoveryResults -Results $script:cand -MinimumConfidence 'High'
+        $high = Invoke-DiscoveryEngine -Groups $script:data.Groups -InputData $script:data.InputData `
+            -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex -MinimumConfidence 'High'
         $high.Count | Should -Be 9
         $high.Name  | Should -Not -Contain 'Global Logistics Stewards'   # Medium -> dropped
         $high.Name  | Should -Contain 'Project Atlas Team'               # Confirmed -> kept
@@ -101,16 +92,8 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
 
     It 'SecurityGroupsOnly drops the distribution group (Northwind Support)' {
         $secGroups = @($script:data.Groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' })
-        $discoveryInput = $script:data.InputData
-        $knownKeys = @{}
-        foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
-        $excludeKeys = @{}
-        foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
-
-        $c = Find-CandidateGroups -Groups $secGroups -Keywords $discoveryInput.Keywords `
-            -VendorUsers $script:data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-        $c = Expand-VendorGroupClosure -Results $c
-        $s = Select-DiscoveryResults -Results $c
+        $s = Invoke-DiscoveryEngine -Groups $secGroups -InputData $script:data.InputData `
+            -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex
 
         $s.Count | Should -Be 9
         $s.Name  | Should -Not -Contain 'Northwind Support'
@@ -120,16 +103,9 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
 
 Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     BeforeAll {
-        $script:outDir = Join-Path ([System.IO.Path]::GetTempPath()) ("fx_" + [guid]::NewGuid())
+        $script:outDir = New-TestTempDir -Prefix 'fx'
         Mock -CommandName Get-AdDiscoveryData -MockWith {
-            $d = Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
-            [pscustomobject]@{
-                Groups        = $d.Groups
-                VendorUsers   = $d.VendorUsers
-                DnIndex       = $d.DnIndex
-                FailedDomains = @()
-                Warnings      = @()
-            }
+            Get-FixtureDiscoveryData -FixtureDir $script:fixtureDir
         }
         $inDir = Join-Path $script:fixtureDir 'discovery-input'
         Find-VendorAdGroup `

@@ -1,8 +1,6 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    $script:users = @(
-        [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; Tokens=@('jsmith','John Smith') }
-    )
+    $script:users = @(New-TestVendorUser -WithTokens)
 }
 
 Describe 'Get-DescriptionMatchReasons' {

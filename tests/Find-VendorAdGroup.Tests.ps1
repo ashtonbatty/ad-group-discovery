@@ -1,7 +1,6 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("int_" + [guid]::NewGuid())
-    New-Item -ItemType Directory -Path $script:tmp | Out-Null
+    $script:tmp = New-TestTempDir -Prefix 'int'
     Set-Content "$tmp/users.csv"   "SamAccountName,DisplayName`njsmith,John Smith"
     Set-Content "$tmp/domains.csv" "Domain`ncorp.example.com"
     Set-Content "$tmp/keywords.csv" "Keyword`nAcme"

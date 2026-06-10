@@ -17,11 +17,6 @@ function Find-VendorAdGroup {
     $inputData = Read-DiscoveryInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
         -KnownGroupsCsv $KnownGroupsCsv -ExcludeGroupsCsv $ExcludeGroupsCsv
 
-    $knownKeys = @{}
-    foreach ($k in $inputData.KnownGroups) { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
-    $excludeKeys = @{}
-    foreach ($e in $inputData.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
-
     if (-not (Test-Path -LiteralPath $OutputDirectory)) {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
@@ -31,13 +26,9 @@ function Find-VendorAdGroup {
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }
 
-    $candidates = Find-CandidateGroups -Groups $groups -Keywords $inputData.Keywords `
-        -VendorUsers $data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-    $candidates = Expand-VendorGroupClosure -Results $candidates -MaxIterations $MaxIterations
-    $selected   = Select-DiscoveryResults -Results $candidates -MinimumConfidence $MinimumConfidence
-    $selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
-    $rank       = Get-ConfidenceRank
-    $selected   = @($selected | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Domain, Name)
+    $selected = Invoke-DiscoveryEngine -Groups $groups -InputData $inputData `
+        -VendorUsers $data.VendorUsers -DnIndex $data.DnIndex `
+        -MinimumConfidence $MinimumConfidence -MaxIterations $MaxIterations
 
     $summary = [pscustomobject]@{
         TotalGroups   = @($selected).Count

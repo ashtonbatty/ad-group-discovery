@@ -8,17 +8,19 @@
 #>
 [CmdletBinding()]
 param(
+    # Only bound parameters are forwarded; defaults are owned by the module's
+    # Find-VendorAdGroup function — do not duplicate them here.
     [Parameter(Mandatory)][string]$UsersCsv,
     [Parameter(Mandatory)][string]$DomainsCsv,
     [Parameter(Mandatory)][string]$KeywordsCsv,
     [Parameter(Mandatory)][string]$KnownGroupsCsv,
     [Parameter(Mandatory)][string]$ExcludeGroupsCsv,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('Csv','Html','Console')][string[]]$Formats = @('Csv','Html','Console'),
+    [ValidateSet('Csv','Html','Console')][string[]]$Formats,
     [System.Management.Automation.PSCredential]$Credential,
-    [int]$MaxIterations = 25,
+    [int]$MaxIterations,
     [switch]$SecurityGroupsOnly,
-    [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
+    [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence
 )
 Import-Module (Join-Path $PSScriptRoot 'VendorAdGroupDiscovery.psd1') -Force
 Find-VendorAdGroup @PSBoundParameters | Out-Null

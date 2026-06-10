@@ -12,13 +12,13 @@ function Find-CandidateGroups {
         if ($ExcludeKeys.ContainsKey($dnKey) -or $ExcludeKeys.ContainsKey($nameKey)) { continue }
         $isKnown = $KnownKeys.ContainsKey($dnKey) -or $KnownKeys.ContainsKey($nameKey)
 
-        $reasons = @()
-        $reasons += Get-NameMatchReason       -GroupName $g.Name -Keywords $Keywords
-        $reasons += Get-ContainerMatchReason  -DistinguishedName $g.DistinguishedName -Keywords $Keywords
-        $reasons += Get-DescriptionMatchReasons -Description $g.Description -Info $g.Info -Keywords $Keywords -VendorUsers $VendorUsers
-        $reasons += Get-OwnerMatchReason      -ManagedBy $g.ManagedBy -VendorUsers $VendorUsers -Index $vendorIndex
-        $reasons += Get-MemberMatchReasons    -Member $g.Member -VendorUsers $VendorUsers -Index $vendorIndex
-        $reasons = @($reasons | Where-Object { $_ })
+        $reasons = @(@(
+            Get-NameMatchReason       -GroupName $g.Name -Keywords $Keywords
+            Get-ContainerMatchReason  -DistinguishedName $g.DistinguishedName -Keywords $Keywords
+            Get-DescriptionMatchReasons -Description $g.Description -Info $g.Info -Keywords $Keywords -VendorUsers $VendorUsers
+            Get-OwnerMatchReason      -ManagedBy $g.ManagedBy -VendorUsers $VendorUsers -Index $vendorIndex
+            Get-MemberMatchReasons    -Member $g.Member -VendorUsers $VendorUsers -Index $vendorIndex
+        ) | Where-Object { $_ })
 
         $cc = Get-MatchConfidence -Reasons $reasons -IsKnown:$isKnown
         $source = if ($isKnown) { 'Known' } else { 'Discovered' }
@@ -33,6 +33,8 @@ function Find-CandidateGroups {
             IsKnown = $isKnown; Source = $source
         })
     }
+    # ,@() would emit a single empty-array item (Count 1) downstream; the guard keeps
+    # the empty case emitting nothing.
     if ($results.Count) { return ,$results.ToArray() }
     return @()
 }

@@ -12,21 +12,18 @@ function Write-ConsoleSummary {
     }
     $lines += ''
     $lines += 'By confidence:'
-    foreach ($band in @('Confirmed','High','Medium','Low')) {
-        $n = @($Results | Where-Object Confidence -eq $band).Count
-        $lines += ("  {0,-12} {1}" -f $band, $n)
+    $rank = Get-ConfidenceRank
+    $bandCounts = @{}
+    foreach ($g in ($Results | Group-Object Confidence)) { $bandCounts[$g.Name] = $g.Count }
+    # Band list and order derive from the canonical rank table (None is never reported).
+    foreach ($band in ($rank.Keys | Where-Object { $rank[$_] -gt 0 } | Sort-Object { $rank[$_] } -Descending)) {
+        $lines += ("  {0,-12} {1}" -f $band, [int]$bandCounts[$band])
     }
     $lines += ''
     $lines += 'By match reason:'
-    $reasonCounts = @{}
-    foreach ($r in $Results) {
-        foreach ($reason in @($r.Reasons)) {
-            if ($null -eq $reason) { continue }
-            $reasonCounts[$reason.Pattern] = $reasonCounts[$reason.Pattern] + 1   # $null + 1 = 1 for a new key
-        }
-    }
-    foreach ($k in ($reasonCounts.Keys | Sort-Object)) {
-        $lines += ("  {0,-20} {1}" -f $k, $reasonCounts[$k])
+    $allReasons = @($Results | ForEach-Object { $_.Reasons }) | Where-Object { $_ }
+    foreach ($g in ($allReasons | Group-Object Pattern | Sort-Object Name)) {
+        $lines += ("  {0,-20} {1}" -f $g.Name, $g.Count)
     }
     if (@($Summary.FailedDomains).Count) {
         $lines += ''

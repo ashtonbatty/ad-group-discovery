@@ -1,9 +1,6 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
-    $script:users = @(
-        [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'
-            Sid='S-1-5-21-1-2-3-1001'; DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com' }
-    )
+    $script:users = @(New-TestVendorUser)
     $script:dnIndex = @{ 'cn=john smith,ou=vendor,dc=corp,dc=example,dc=com' = 'John Smith' }
     function New-R($name,$conf,$member=@(),$memberof=@(),$managedby='') {
         [pscustomobject]@{ Domain='corp'; Name=$name; Confidence=$conf; Score=9

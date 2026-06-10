@@ -3,12 +3,7 @@ function Protect-CsvCell {
     param([object]$Value)
     if ($null -eq $Value) { return $Value }
     $s = [string]$Value
-    if ($s.Length -gt 0) {
-        $first = $s[0]
-        # Neutralize leading formula triggers: = + - @ TAB CR
-        if ($first -eq '=' -or $first -eq '+' -or $first -eq '-' -or $first -eq '@' -or $first -eq [char]9 -or $first -eq [char]13) {
-            $s = "'" + $s
-        }
-    }
+    # Neutralize leading formula triggers: = + - @ TAB LF CR
+    if ($s -match '^[=+\-@\t\n\r]') { $s = "'" + $s }
     return $s
 }

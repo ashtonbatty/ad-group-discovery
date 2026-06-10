@@ -16,20 +16,12 @@ $testsDir   = Split-Path -Parent $fixtureDir
 . (Join-Path $testsDir '_TestHelpers.ps1')
 . (Join-Path $fixtureDir 'Import-DiscoveryFixture.ps1')
 
-$data       = Get-FixtureDiscoveryData -FixtureDir $fixtureDir
-$discoveryInput = $data.InputData
+$data = Get-FixtureDiscoveryData -FixtureDir $fixtureDir
 
-$knownKeys = @{}
-foreach ($k in $discoveryInput.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
-$excludeKeys = @{}
-foreach ($e in $discoveryInput.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
-
-$candidates = Find-CandidateGroups -Groups $data.Groups -Keywords $discoveryInput.Keywords `
-    -VendorUsers $data.VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-$candidates = Expand-VendorGroupClosure -Results $candidates
-$selected   = Select-DiscoveryResults -Results $candidates
-$selected   = Resolve-ResultDisplay -Results $selected -DnIndex $data.DnIndex -VendorUsers $data.VendorUsers
-$selected   = @($selected)
+# Plain assignment: Invoke-DiscoveryEngine returns the result array as a single
+# item (comma idiom), so an extra @( ) wrap would nest it.
+$selected = Invoke-DiscoveryEngine -Groups $data.Groups -InputData $data.InputData `
+    -VendorUsers $data.VendorUsers -DnIndex $data.DnIndex
 
 $summary = [pscustomobject]@{
     TotalGroups   = $selected.Count

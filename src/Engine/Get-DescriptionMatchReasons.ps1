@@ -8,12 +8,11 @@ function Get-DescriptionMatchReasons {
     }
     if (-not [string]::IsNullOrWhiteSpace($text)) {
         foreach ($u in $VendorUsers) {
-            foreach ($tok in $u.Tokens) {
-                if ([string]::IsNullOrWhiteSpace($tok) -or $tok.Trim().Length -lt 3) { continue }
-                if ($text.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                    $reasons.Add([pscustomobject]@{ Pattern = 'DescriptionUser'; Value = "$($u.SamAccountName) ~ $tok" })
-                    break   # one reason per user
-                }
+            # One reason per user, tagged with the first token that hit. Token hygiene
+            # (non-blank, >= 3 chars) is owned by ConvertTo-IdentityTokens.
+            $tok = @(Test-KeywordMatch -Text $text -Keywords $u.Tokens) | Select-Object -First 1
+            if ($tok) {
+                $reasons.Add([pscustomobject]@{ Pattern = 'DescriptionUser'; Value = "$($u.SamAccountName) ~ $tok" })
             }
         }
     }

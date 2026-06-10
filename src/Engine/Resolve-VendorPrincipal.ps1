@@ -2,20 +2,15 @@ function Resolve-VendorPrincipal {
     [CmdletBinding()]
     param([string]$Identity, [object[]]$VendorUsers, [hashtable]$Index)
     if ([string]::IsNullOrWhiteSpace($Identity)) { return $null }
-    $sid = $null
-    if ($Identity -match '^CN=(S-\d-[\d-]+)') { $sid = $Matches[1] }
-    if ($Index) {
-        if ($sid) {
-            $sk = 'sid:' + $sid.ToLower()
-            if ($Index.ContainsKey($sk)) { return $Index[$sk] }
-        }
-        $dk = 'dn:' + $Identity.ToLower()
-        if ($Index.ContainsKey($dk)) { return $Index[$dk] }
-        return $null
+    # Hot-path callers pass a prebuilt index; build one on demand otherwise so there
+    # is a single matching implementation.
+    if (-not $Index) { $Index = New-VendorPrincipalIndex -VendorUsers $VendorUsers }
+    $sid = Get-FspSid -DistinguishedName $Identity
+    if ($sid) {
+        $sk = 'sid:' + $sid.ToLower()
+        if ($Index.ContainsKey($sk)) { return $Index[$sk] }
     }
-    foreach ($u in $VendorUsers) {
-        if ($sid -and $u.Sid -and ($u.Sid -ieq $sid)) { return $u }
-        if ($u.DistinguishedName -and ($u.DistinguishedName -ieq $Identity)) { return $u }
-    }
+    $dk = 'dn:' + $Identity.ToLower()
+    if ($Index.ContainsKey($dk)) { return $Index[$dk] }
     return $null
 }

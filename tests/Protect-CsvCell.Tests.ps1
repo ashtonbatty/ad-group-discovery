@@ -7,6 +7,11 @@ Describe 'Protect-CsvCell' {
         Protect-CsvCell -Value '-2+3'      | Should -Be "'-2+3"
         Protect-CsvCell -Value '@foo'      | Should -Be "'@foo"
     }
+    It 'prefixes leading control-character formula triggers with an apostrophe' {
+        Protect-CsvCell -Value ([string]([char]9) + '=1+1')  | Should -Be ([string]"'$([char]9)=1+1")
+        Protect-CsvCell -Value ([string]([char]10) + '=1+1') | Should -Be ([string]"'$([char]10)=1+1")
+        Protect-CsvCell -Value ([string]([char]13) + '=1+1') | Should -Be ([string]"'$([char]13)=1+1")
+    }
     It 'leaves safe values unchanged' {
         Protect-CsvCell -Value 'Acme Admins' | Should -Be 'Acme Admins'
         Protect-CsvCell -Value '*John Smith' | Should -Be '*John Smith'
@@ -19,8 +24,7 @@ Describe 'Protect-CsvCell' {
 
 Describe 'Write-CsvReport CSV-injection hardening' {
     BeforeAll {
-        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("csvinj_" + [guid]::NewGuid())
-        New-Item -ItemType Directory -Path $script:tmp | Out-Null
+        $script:tmp = New-TestTempDir -Prefix 'csvinj'
     }
     AfterAll { Remove-Item -Recurse -Force $script:tmp -ErrorAction SilentlyContinue }
 

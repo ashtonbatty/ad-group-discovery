@@ -2,19 +2,9 @@ function Write-HtmlReport {
     [CmdletBinding()]
     param([object[]]$Results, [object]$Summary, [Parameter(Mandatory)][string]$Path)
 
-    # System.Web may not be loaded by default; prefer HttpUtility, else fall back to
-    # manual escaping. Resolve which path to use once, then define the helper once.
-    try { Add-Type -AssemblyName System.Web -ErrorAction Stop } catch { $null = $_ }
-    if ('System.Web.HttpUtility' -as [type]) {
-        function Get-HtmlEncoded([string]$Text) {
-            if ($null -eq $Text) { return '' }
-            [System.Web.HttpUtility]::HtmlEncode($Text)
-        }
-    } else {
-        function Get-HtmlEncoded([string]$Text) {
-            if ($null -eq $Text) { return '' }
-            $Text.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('"','&quot;').Replace("'",'&#39;')
-        }
+    # WebUtility is always available (PS 5.1 and 7+) and encodes & < > " '.
+    function Get-HtmlEncoded([string]$Text) {
+        [System.Net.WebUtility]::HtmlEncode($Text)
     }
 
     $css = @'
@@ -43,15 +33,19 @@ th{background:#f2f2f2}
     }
     if (@($Summary.Warnings).Count) {
         [void]$sb.AppendLine("<div>Warnings: $(@($Summary.Warnings).Count)</div>")
+        [void]$sb.AppendLine('<ul>')
+        foreach ($warning in @($Summary.Warnings)) {
+            [void]$sb.AppendLine("<li>$(Get-HtmlEncoded $warning)</li>")
+        }
+        [void]$sb.AppendLine('</ul>')
     }
     [void]$sb.AppendLine('</div>')
 
-    $rank = Get-ConfidenceRank
     $byDomain = $Results | Group-Object Domain
     foreach ($dg in $byDomain) {
         [void]$sb.AppendLine("<h2>$(Get-HtmlEncoded $dg.Name)</h2>")
         [void]$sb.AppendLine('<table><tr><th>Confidence</th><th>Name</th><th>Owner</th><th>Members</th><th>Member Of</th><th>Description</th><th>Match Reasons</th><th>Scope/Category</th></tr>')
-        $ordered = $dg.Group | Sort-Object @{ Expression = { $rank[$_.Confidence] }; Descending = $true }, Name
+        $ordered = Sort-DiscoveryResult -Results $dg.Group
         foreach ($r in $ordered) {
             $reasons = (@($r.Reasons) | ForEach-Object { "<span class='reason'>$(Get-HtmlEncoded "$($_.Pattern): $($_.Value)")</span>" }) -join ' '
             [void]$sb.AppendLine("<tr class=""$(Get-HtmlEncoded $r.Confidence)"">")

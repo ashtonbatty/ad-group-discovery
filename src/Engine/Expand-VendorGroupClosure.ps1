@@ -2,11 +2,14 @@ function Expand-VendorGroupClosure {
     [CmdletBinding()]
     param([object[]]$Results, [int]$MaxIterations = 25)
 
+    $rank = Get-ConfidenceRank
+    $seedRank = $rank['Medium']
+
     for ($round = 0; $round -lt $MaxIterations; $round++) {
-        # Confirmed seeds this round: known, or score >= 2 (direct or already-promoted).
+        # Confirmed seeds this round: known, or at least Medium band (direct or already-promoted).
         $confirmed = @{}
         foreach ($r in $Results) {
-            if ($r.IsKnown -or $r.Score -ge 2) { $confirmed[$r.DistinguishedName.ToLower()] = $r }
+            if ($r.IsKnown -or $rank[$r.Confidence] -ge $seedRank) { $confirmed[$r.DistinguishedName.ToLower()] = $r }
         }
 
         $changed = $false
