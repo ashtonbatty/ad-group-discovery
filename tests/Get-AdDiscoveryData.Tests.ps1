@@ -88,4 +88,80 @@ Describe 'Get-AdDiscoveryData' {
         $data = Get-AdDiscoveryData -InputData $inp
         $data.VendorUsers.Count | Should -Be 2
     }
+    It 'issues one batched LDAP query per domain regardless of user count' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users   = @(
+                [pscustomobject]@{ SamAccountName='adoe';   DisplayName='A Doe' }
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='J Smith' }
+                [pscustomobject]@{ SamAccountName='kchan';  DisplayName='K Chan' }
+            )
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';    Server='dc1'; Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='dc2'; Name='Partner' }
+            )
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADUser -Exactly -Times 2
+    }
+    It 'builds a sorted OR filter over all valid sams' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users   = @(
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='J Smith' }
+                [pscustomobject]@{ SamAccountName='adoe';   DisplayName='A Doe' }
+            )
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADUser -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -eq '(|(sAMAccountName=adoe)(sAMAccountName=jsmith))'
+        }
+    }
+    It 'chunks the batched query above the batch size' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $users = 1..201 | ForEach-Object {
+            [pscustomobject]@{ SamAccountName=('u{0:d3}' -f $_); DisplayName="U$_" }
+        }
+        $inp = [pscustomobject]@{
+            Users   = @($users)
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADUser -Exactly -Times 2
+    }
+    It 'warns per domain (not per user) when the batched user lookup fails' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { throw 'ldap down' }
+        $inp = [pscustomobject]@{
+            Users   = @(
+                [pscustomobject]@{ SamAccountName='adoe';   DisplayName='A Doe' }
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='J Smith' }
+            )
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.VendorUsers.Count | Should -Be 0
+        @($data.Warnings | Where-Object { $_ -match "User lookup failed in 'corp.example.com'" }).Count |
+            Should -Be 1
+        # A user-lookup failure is not a failed domain (that is reserved for group enumeration).
+        $data.FailedDomains.Count | Should -Be 0
+    }
+    It 'warns once total (not per domain) for a suspicious SamAccountName' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName="evil') -or (cn=*"; DisplayName='X' })
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';    Server='dc1'; Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='dc2'; Name='Partner' }
+            )
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        @($data.Warnings | Where-Object { $_ -match 'suspicious' }).Count | Should -Be 1
+        Should -Invoke Get-ADUser -Exactly -Times 0
+    }
 }

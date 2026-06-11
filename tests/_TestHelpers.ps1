@@ -37,9 +37,18 @@ function New-TestTempDir {
 }
 
 # Stub AD cmdlets so Pester Mock can intercept them on non-Windows / no-AD test runners.
+# Parameters mirror the RSAT cmdlets' (subset we use) so Mock -ParameterFilter can bind them.
 if (-not (Get-Command Get-ADGroup  -ErrorAction SilentlyContinue)) {
-    function Get-ADGroup  { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$RemainingArgs) }
+    function Get-ADGroup  {
+        [CmdletBinding()]
+        param($Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
+              [System.Management.Automation.PSCredential]$Credential)
+    }
 }
 if (-not (Get-Command Get-ADUser   -ErrorAction SilentlyContinue)) {
-    function Get-ADUser   { [CmdletBinding()] param([Parameter(ValueFromRemainingArguments)]$RemainingArgs) }
+    function Get-ADUser   {
+        [CmdletBinding()]
+        param($Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
+              [System.Management.Automation.PSCredential]$Credential)
+    }
 }
