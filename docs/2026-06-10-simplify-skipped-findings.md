@@ -20,6 +20,10 @@ the reasoning. The applied findings are described in the commit
   hand-built LDAP filter string (escaping rules differ). Couldn't be validated
   against a live directory from this environment. Do this as a deliberate change
   with its own tests for the batched-filter escaping and warning behavior.
+- **Status:** Done 2026-06-11 — see
+  `docs/superpowers/specs/2026-06-11-batched-user-lookup-design.md` and
+  `src/Ad/New-SamLdapFilter.ps1`. Not yet validated against a live directory;
+  sanity-check resolved-user counts and warnings on the first multi-domain run.
 
 ## Conscious trade-offs (revisit only if the pressure changes)
 
@@ -64,6 +68,8 @@ the reasoning. The applied findings are described in the commit
 - **Why skipped:** removing a public, documented parameter is an API/behavior
   decision, not a cleanup. The inert runner defaults *were* removed; the
   parameter itself stays until its owner decides otherwise.
+- **Status:** Done 2026-06-11 — removed from the public chain; the internal
+  backstop remains on `Expand-VendorGroupClosure`.
 
 ### Merge the runner's duplicated param block
 - **File:** `Find-VendorAdGroup.ps1` (root runner) vs `src/Find-VendorAdGroup.ps1`
