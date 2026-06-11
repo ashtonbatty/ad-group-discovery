@@ -39,8 +39,10 @@ Describe 'Get-AdDiscoveryData' {
     It 'records a failed domain and continues' {
         Mock -CommandName Get-ADGroup -MockWith { throw 'server down' }
         $discoveryInput = [pscustomobject]@{
-            Users   = @()
-            Domains = @([pscustomobject]@{ Domain='dead.example.com'; Server=$null; Name=$null })
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='dead.example.com'; Server=$null; Name=$null })
         }
         $data = Get-AdDiscoveryData -InputData $discoveryInput
         $data.FailedDomains | Should -Contain 'dead.example.com'
@@ -163,5 +165,192 @@ Describe 'Get-AdDiscoveryData' {
         $data = Get-AdDiscoveryData -InputData $inp
         @($data.Warnings | Where-Object { $_ -match 'suspicious' }).Count | Should -Be 1
         Should -Invoke Get-ADUser -Exactly -Times 0
+    }
+    It 'adds the security-group LDAP bit filter when SecurityGroupsOnly is requested' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp -SecurityGroupsOnly
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -match 'groupType:1\.2\.840\.113556\.1\.4\.803:=2147483648'
+        }
+    }
+    It 'does not add the security-group LDAP bit filter by default' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -match 'Acme' -and
+            $LDAPFilter -notmatch 'groupType:1\.2\.840\.113556\.1\.4\.803:=2147483648'
+        }
+    }
+    It 'uses lightweight group properties for candidate searches' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -match 'Acme' -and
+            $Properties -contains 'description' -and
+            $Properties -notcontains 'member' -and
+            $Properties -notcontains 'memberOf'
+        }
+    }
+    It 'discovers groups by direct vendor membership and hydrates only candidates' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail='jsmith@vendor.com'
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*member=CN=John Smith*' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $groupDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.Groups.Name | Should -Contain 'Acme Admins'
+        $data.Groups[0].Member | Should -Contain $userDn
+    }
+    It 'discovers groups by keyword LDAP search' {
+        $groupDn = 'CN=Acme Operators,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Operators'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $groupDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Operators'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        (Get-AdDiscoveryData -InputData $inp).Groups.Name | Should -Contain 'Acme Operators'
+    }
+    It 'discovers known groups by exact name lookup' {
+        $groupDn = 'CN=Project Atlas Team,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=Project Atlas Team*' } -MockWith {
+            [pscustomobject]@{ Name='Project Atlas Team'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $groupDn } -MockWith {
+            [pscustomobject]@{ Name='Project Atlas Team'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @()
+            KnownGroups = @([pscustomobject]@{ Domain='corp.example.com'; Identity='Project Atlas Team' })
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        (Get-AdDiscoveryData -InputData $inp).Groups.Name | Should -Contain 'Project Atlas Team'
+    }
+    It 'discovers groups under keyword-matched OUs' {
+        $ouDn = 'OU=Acme,DC=corp,DC=example,DC=com'
+        $groupDn = 'CN=Access,OU=Acme,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith {
+            [pscustomobject]@{ Name='Acme'; DistinguishedName=$ouDn }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $SearchBase -eq $ouDn } -MockWith {
+            [pscustomobject]@{ Name='Access'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $groupDn } -MockWith {
+            [pscustomobject]@{ Name='Access'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        (Get-AdDiscoveryData -InputData $inp).Groups.Name | Should -Contain 'Access'
+    }
+    It 'discovers nested parent groups through targeted parent lookup' {
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $childDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $parentDn = 'CN=Global Stewards,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
+            [pscustomobject]@{ Name='Global Stewards'; DistinguishedName=$parentDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $childDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@($parentDn)
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $parentDn } -MockWith {
+            [pscustomobject]@{ Name='Global Stewards'; DistinguishedName=$parentDn
+                description=''; info=''; managedBy=''; member=@($childDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        (Get-AdDiscoveryData -InputData $inp).Groups.Name | Should -Contain 'Global Stewards'
     }
 }

@@ -23,7 +23,7 @@ function Find-VendorAdGroup {
     $domainCount = @($inputData.Domains).Count
     $userCount   = @($inputData.Users).Count
     Write-Host "Querying Active Directory ($domainCount domain(s), $userCount vendor user(s))..."
-    $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential
+    $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential -SecurityGroupsOnly:$SecurityGroupsOnly
 
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }

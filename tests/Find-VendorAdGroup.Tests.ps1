@@ -36,4 +36,13 @@ Describe 'Find-VendorAdGroup' {
         $csv | Should -Not -BeNullOrEmpty
         (Import-Csv $csv.FullName)[0].Name | Should -Be 'Acme Admins'
     }
+    It 'passes SecurityGroupsOnly through to AD discovery' {
+        $out = Join-Path $tmp 'security-reports'
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
+            -OutputDirectory $out -Formats @('Csv') -SecurityGroupsOnly
+        Should -Invoke Get-AdDiscoveryData -Exactly -Times 1 -ParameterFilter {
+            $SecurityGroupsOnly
+        }
+    }
 }

@@ -41,12 +41,20 @@ function New-TestTempDir {
 if (-not (Get-Command Get-ADGroup  -ErrorAction SilentlyContinue)) {
     function Get-ADGroup  {
         [CmdletBinding()]
-        param($Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
+        param($Identity, $Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
+              [string]$SearchBase,
               [System.Management.Automation.PSCredential]$Credential)
     }
 }
 if (-not (Get-Command Get-ADUser   -ErrorAction SilentlyContinue)) {
     function Get-ADUser   {
+        [CmdletBinding()]
+        param($Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
+              [System.Management.Automation.PSCredential]$Credential)
+    }
+}
+if (-not (Get-Command Get-ADOrganizationalUnit -ErrorAction SilentlyContinue)) {
+    function Get-ADOrganizationalUnit {
         [CmdletBinding()]
         param($Filter, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
               [System.Management.Automation.PSCredential]$Credential)
