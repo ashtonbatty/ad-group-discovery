@@ -14,7 +14,7 @@ function Read-DiscoveryInput {
         $cols = if ($rows.Count -gt 0) {
             @($rows[0].PSObject.Properties.Name)
         } else {
-            # No data rows — read the header line directly so column validation still runs.
+            # No data rows - read the header line directly so column validation still runs.
             $headerLine = Get-Content -LiteralPath $Path -TotalCount 1 -ErrorAction SilentlyContinue
             if ([string]::IsNullOrWhiteSpace($headerLine)) {
                 @()

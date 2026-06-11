@@ -9,7 +9,7 @@
 [CmdletBinding()]
 param(
     # Only bound parameters are forwarded; defaults are owned by the module's
-    # Find-VendorAdGroup function — do not duplicate them here.
+    # Find-VendorAdGroup function - do not duplicate them here.
     [Parameter(Mandatory)][string]$UsersCsv,
     [Parameter(Mandatory)][string]$DomainsCsv,
     [Parameter(Mandatory)][string]$KeywordsCsv,

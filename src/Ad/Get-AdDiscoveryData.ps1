@@ -55,7 +55,7 @@ function Get-AdDiscoveryData {
         } catch {
             $failedDomains.Add($d.Domain)
             $warnings.Add("Failed to query groups in '$($d.Domain)': $($_.Exception.Message)")
-            # Do NOT continue — vendor-user resolution below is independent of group enumeration.
+            # Do NOT continue - vendor-user resolution below is independent of group enumeration.
         }
 
         $domainUserCount = 0
@@ -88,7 +88,7 @@ function Get-AdDiscoveryData {
                 $domainUserCount++
             }
         }
-        Write-Host "  [$domainIndex/$domainTotal] $($d.Domain) — $domainGroupCount groups, $domainUserCount vendor users"
+        Write-Host "  [$domainIndex/$domainTotal] $($d.Domain) - $domainGroupCount groups, $domainUserCount vendor users"
     }
 
     $groupsArr = $allGroups.ToArray()
