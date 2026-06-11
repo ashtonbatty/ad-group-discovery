@@ -20,11 +20,15 @@ function Find-VendorAdGroup {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
 
+    $domainCount = @($inputData.Domains).Count
+    $userCount   = @($inputData.Users).Count
+    Write-Host "Querying Active Directory ($domainCount domain(s), $userCount vendor user(s))..."
     $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential
 
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }
 
+    Write-Host "Running discovery engine over $(@($groups).Count) group(s)..."
     $selected = Invoke-DiscoveryEngine -Groups $groups -InputData $inputData `
         -VendorUsers $data.VendorUsers -DnIndex $data.DnIndex `
         -MinimumConfidence $MinimumConfidence
@@ -36,6 +40,8 @@ function Find-VendorAdGroup {
         GeneratedAt   = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     }
 
+    $activeFormats = $Formats | Where-Object { $_ -ne 'Console' }
+    if ($activeFormats) { Write-Host "Writing reports ($($activeFormats -join ', '))..." }
     if ($Formats -contains 'Csv') {
         Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv')
     }

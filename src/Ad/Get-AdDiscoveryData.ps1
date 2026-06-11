@@ -29,11 +29,16 @@ function Get-AdDiscoveryData {
     }
     $validSams = @($csvUserBySam.Keys | Sort-Object)   # deterministic filter strings
 
+    $domainTotal = @($InputData.Domains).Count
+    $domainIndex = 0
     foreach ($d in $InputData.Domains) {
+        $domainIndex++
+        Write-Host "  [$domainIndex/$domainTotal] $($d.Domain)..."
         $server = if ($d.Server) { $d.Server } else { $d.Domain }
         $common = @{ Server = $server; ErrorAction = 'Stop' }
         if ($Credential) { $common['Credential'] = $Credential }
 
+        $domainGroupCount = 0
         try {
             $groups = Get-ADGroup @common -Filter * -Properties $groupProps
             foreach ($g in $groups) {
@@ -45,6 +50,7 @@ function Get-AdDiscoveryData {
                     Mail = $g.mail; AdminCount = $g.adminCount
                     WhenCreated = $g.whenCreated; WhenChanged = $g.whenChanged
                 })
+                $domainGroupCount++
             }
         } catch {
             $failedDomains.Add($d.Domain)
@@ -52,6 +58,7 @@ function Get-AdDiscoveryData {
             # Do NOT continue — vendor-user resolution below is independent of group enumeration.
         }
 
+        $domainUserCount = 0
         for ($i = 0; $i -lt $validSams.Count; $i += $samBatchSize) {
             $last = [Math]::Min($i + $samBatchSize, $validSams.Count) - 1
             $batchFilter = New-SamLdapFilter -SamAccountNames $validSams[$i..$last]
@@ -78,8 +85,10 @@ function Get-AdDiscoveryData {
                     DistinguishedName = $u.DistinguishedName
                     Tokens         = $tokens
                 })
+                $domainUserCount++
             }
         }
+        Write-Host "  [$domainIndex/$domainTotal] $($d.Domain) — $domainGroupCount groups, $domainUserCount vendor users"
     }
 
     $groupsArr = $allGroups.ToArray()
