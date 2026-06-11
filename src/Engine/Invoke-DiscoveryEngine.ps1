@@ -9,8 +9,7 @@ function Invoke-DiscoveryEngine {
         [Parameter(Mandatory)][object]$InputData,
         [object[]]$VendorUsers,
         [hashtable]$DnIndex,
-        [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low',
-        [int]$MaxIterations = 25
+        [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
     )
     $knownKeys = @{}
     foreach ($k in $InputData.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
@@ -19,7 +18,7 @@ function Invoke-DiscoveryEngine {
 
     $candidates = Find-CandidateGroups -Groups $Groups -Keywords $InputData.Keywords `
         -VendorUsers $VendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
-    $candidates = Expand-VendorGroupClosure -Results $candidates -MaxIterations $MaxIterations
+    $candidates = Expand-VendorGroupClosure -Results $candidates
     $selected   = Select-DiscoveryResults -Results $candidates -MinimumConfidence $MinimumConfidence
     $selected   = Resolve-ResultDisplay -Results $selected -DnIndex $DnIndex -VendorUsers $VendorUsers
     Sort-DiscoveryResult -Results $selected

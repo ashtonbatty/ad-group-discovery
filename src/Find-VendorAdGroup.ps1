@@ -9,7 +9,6 @@ function Find-VendorAdGroup {
         [Parameter(Mandatory)][string]$OutputDirectory,
         [ValidateSet('Csv','Html','Console')][string[]]$Formats = @('Csv','Html','Console'),
         [System.Management.Automation.PSCredential]$Credential,
-        [int]$MaxIterations = 25,
         [switch]$SecurityGroupsOnly,
         [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
     )
@@ -28,7 +27,7 @@ function Find-VendorAdGroup {
 
     $selected = Invoke-DiscoveryEngine -Groups $groups -InputData $inputData `
         -VendorUsers $data.VendorUsers -DnIndex $data.DnIndex `
-        -MinimumConfidence $MinimumConfidence -MaxIterations $MaxIterations
+        -MinimumConfidence $MinimumConfidence
 
     $summary = [pscustomobject]@{
         TotalGroups   = @($selected).Count

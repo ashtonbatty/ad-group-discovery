@@ -31,7 +31,7 @@ confidence-scored match reasons.
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
 ```
 
-Options: `-Formats Csv,Html,Console`, `-Credential`, `-MaxIterations 25`,
+Options: `-Formats Csv,Html,Console`, `-Credential`,
 `-SecurityGroupsOnly`, `-MinimumConfidence Low|Medium|High|Confirmed`.
 
 ## How groups are found

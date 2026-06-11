@@ -18,7 +18,6 @@ param(
     [Parameter(Mandatory)][string]$OutputDirectory,
     [ValidateSet('Csv','Html','Console')][string[]]$Formats,
     [System.Management.Automation.PSCredential]$Credential,
-    [int]$MaxIterations,
     [switch]$SecurityGroupsOnly,
     [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence
 )
