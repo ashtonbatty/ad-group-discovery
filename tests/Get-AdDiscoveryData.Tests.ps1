@@ -19,10 +19,10 @@ Describe 'Get-AdDiscoveryData' {
                 whenCreated=$null; whenChanged=$null }
         }
         Mock -CommandName Get-ADUser -MockWith {
-            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; Surname='Smith'
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
                 CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail='jsmith@vendor.com'
                 DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
-                SID=[pscustomobject]@{ Value='S-1-5-21-1-2-3-1001' } }
+                objectSid='S-1-5-21-1-2-3-1001' }
         }
     }
     It 'loads groups and resolves vendor users for a domain' {
@@ -67,13 +67,13 @@ Describe 'Get-AdDiscoveryData' {
     It 'resolves two users with the same SamAccountName from different domains independently' {
         Mock -CommandName Get-ADGroup -MockWith { @() }
         Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'corp.example.com' } -MockWith {
-            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Corp)'; GivenName='John'; Surname='Smith'
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Corp)'; GivenName='John'; sn='Smith'
                 CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@corp.example.com'; mail=$null
                 DistinguishedName='CN=jsmith,DC=corp,DC=example,DC=com'
                 objectSid='S-1-5-21-100-200-300-1001' }
         }
         Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'partner.example.com' } -MockWith {
-            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Partner)'; GivenName='John'; Surname='Smith'
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Partner)'; GivenName='John'; sn='Smith'
                 CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@partner.example.com'; mail=$null
                 DistinguishedName='CN=jsmith,DC=partner,DC=example,DC=com'
                 objectSid='S-1-5-21-999-888-777-1001' }
