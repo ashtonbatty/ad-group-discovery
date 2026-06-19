@@ -32,9 +32,10 @@ Describe 'Find-VendorAdGroup' {
         Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
             -OutputDirectory $out -Formats @('Csv')
-        $csv = Get-ChildItem $out -Filter '*.csv' | Select-Object -First 1
+        $csv = Get-Item (Join-Path $out 'vendor-group-discovery.csv')
         $csv | Should -Not -BeNullOrEmpty
         (Import-Csv $csv.FullName)[0].Name | Should -Be 'Acme Admins'
+        Test-Path (Join-Path $out 'vendor-group-discovery-members.csv') | Should -BeTrue
     }
     It 'passes SecurityGroupsOnly through to AD discovery' {
         $out = Join-Path $tmp 'security-reports'

@@ -45,11 +45,15 @@ score (High / Medium / Low, or Confirmed for known groups):
 - Group **contains another vendor group** — propagated to closure (medium)
 - A vendor user is a direct **member** (weak; multiple members add up)
 
-Members flagged with a leading `*` in reports are vendor users.
+Members flagged with a leading `*` in HTML/console reports are vendor users.
 
 ## Output
 
-- `vendor-group-discovery.csv` — one row per group, with a `MatchReasons` column
+- `vendor-group-discovery.csv` — one row per group, keyed by `Domain\Name`, with
+  `Domain` and `Name` repeated as separate columns, member-count summary columns,
+  and a `MatchReasons` column
+- `vendor-group-discovery-members.csv` — one row per direct group member, keyed by
+  the same `Domain\Name`, with member type, `SamAccountName`, display name, and DN
 - `vendor-group-discovery.html` — grouped by domain and confidence, reasons highlighted
 - Console summary — counts per domain / band / reason, plus failed domains
 

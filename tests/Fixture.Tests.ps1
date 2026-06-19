@@ -117,6 +117,7 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
             -OutputDirectory $script:outDir -Formats @('Csv','Html') | Out-Null
 
         $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery.csv'))
+        $script:memberRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery-members.csv'))
         $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-discovery.html') -Raw
     }
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
@@ -139,9 +140,11 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
         $script:csvRows.Name | Should -Not -Contain 'Contoso Service Desk'
     }
 
-    It 'flags vendor members with an asterisk in the CSV' {
-        $row = $script:csvRows | Where-Object { $_.Name -eq 'Northwind Traders Admins' }
-        $row.Members | Should -Match '\*Maria Hale'
+    It 'records vendor members as known rows in the member CSV' {
+        $row = $script:memberRows | Where-Object {
+            $_.GroupName -eq 'Northwind Traders Admins' -and $_.DisplayName -eq 'Maria Hale'
+        }
+        $row.MemberType | Should -Be 'Known'
     }
 
     It 'writes an HTML report containing the groups and a header per result domain' {

@@ -57,6 +57,32 @@ function Get-FixtureDiscoveryData {
     }
     $vendorUsers = @($vendorUsers)
     $groups = @($dir.Groups)
+    $objectByDn = @{}
+    foreach ($u in $dir.Users) {
+        $objectByDn[$u.DistinguishedName.ToLower()] = [pscustomobject]@{
+            DistinguishedName = $u.DistinguishedName
+            SamAccountName    = $u.SamAccountName
+            DisplayName       = $u.DisplayName
+            Name              = $u.DisplayName
+            ObjectClass       = 'user'
+        }
+    }
+    foreach ($g in $groups) {
+        $objectByDn[$g.DistinguishedName.ToLower()] = [pscustomobject]@{
+            DistinguishedName = $g.DistinguishedName
+            SamAccountName    = ''
+            DisplayName       = $g.Name
+            Name              = $g.Name
+            ObjectClass       = 'group'
+        }
+    }
+    foreach ($g in $groups) {
+        $memberObjects = foreach ($memberDn in @($g.Member)) {
+            $key = $memberDn.ToLower()
+            if ($objectByDn.ContainsKey($key)) { $objectByDn[$key] }
+        }
+        $g | Add-Member -NotePropertyName MemberDirectoryObjects -NotePropertyValue @($memberObjects) -Force
+    }
 
     [pscustomobject]@{
         Groups        = $groups

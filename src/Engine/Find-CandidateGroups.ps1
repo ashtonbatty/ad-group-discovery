@@ -27,6 +27,7 @@ function Find-CandidateGroups {
             Domain = $g.Domain; Name = $g.Name; DistinguishedName = $g.DistinguishedName
             Description = $g.Description; Info = $g.Info; ManagedBy = $g.ManagedBy
             Member = @($g.Member); MemberOf = @($g.MemberOf)
+            MemberDirectoryObjects = @($g.MemberDirectoryObjects)
             GroupScope = $g.GroupScope; GroupCategory = $g.GroupCategory; Mail = $g.Mail
             AdminCount = $g.AdminCount; WhenCreated = $g.WhenCreated; WhenChanged = $g.WhenChanged
             Reasons = $reasons; Score = $cc.Score; Confidence = $cc.Confidence

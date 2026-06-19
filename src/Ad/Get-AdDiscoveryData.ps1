@@ -9,6 +9,7 @@ function Get-AdDiscoveryData {
     $groupMetadataProps = @('description','info','managedBy','groupScope',
                             'groupCategory','mail','adminCount','whenCreated','whenChanged')
     $groupProps = @($groupMetadataProps + @('member','memberOf'))
+    $memberObjectProps = @('sAMAccountName','displayName','name','objectClass')
     $userProps  = @('displayName','givenName','sn','cn','name','userPrincipalName','mail','objectSid','memberOf')
     $samBatchSize = 200   # names per OR'd -LDAPFilter; keeps each filter well under LDAP size limits
     $ldapBatchSize = 40   # DNs/tokens per OR'd group search
@@ -174,6 +175,43 @@ function Get-AdDiscoveryData {
         return $count
     }
 
+    function Resolve-AdMemberObject {
+        param(
+            [Parameter(Mandatory)][hashtable]$Common,
+            [string]$DistinguishedName,
+            [Parameter(Mandatory)][hashtable]$Cache
+        )
+        if ([string]::IsNullOrWhiteSpace($DistinguishedName)) { return $null }
+
+        $key = $DistinguishedName.ToLower()
+        if ($Cache.ContainsKey($key)) { return $Cache[$key] }
+
+        $query = @{} + $Common
+        $query['Identity'] = $DistinguishedName
+        $query['Properties'] = $memberObjectProps
+        try {
+            $adObject = Get-ADObject @query
+        } catch {
+            $adObject = $null
+        }
+
+        $objectClass = ''
+        if ($adObject) {
+            $classes = @($adObject.objectClass)
+            if ($classes.Count -gt 0) { $objectClass = [string]$classes[-1] }
+        }
+
+        $memberObject = [pscustomobject]@{
+            DistinguishedName = $DistinguishedName
+            SamAccountName    = if ($adObject) { $adObject.sAMAccountName } else { '' }
+            DisplayName       = if ($adObject) { $adObject.displayName } else { '' }
+            Name              = if ($adObject) { $adObject.name } else { '' }
+            ObjectClass       = $objectClass
+        }
+        $Cache[$key] = $memberObject
+        return $memberObject
+    }
+
     function Get-Batches {
         param([object[]]$Items, [int]$BatchSize)
         $batches = New-Object System.Collections.ArrayList
@@ -191,6 +229,7 @@ function Get-AdDiscoveryData {
     $warnings      = New-Object System.Collections.Generic.List[string]
     $sidSeen       = @{}   # objectSid string -> already resolved (dedupe same physical user across domains)
     $failedGroupDomain = @{}
+    $memberObjectCache = @{}
 
     # Validate CSV users once and index them by sam so batched query results can be
     # mapped back to their CSV row for token building.
@@ -388,10 +427,16 @@ function Get-AdDiscoveryData {
         foreach ($dn in $candidateDns) {
             $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
             if (-not $group) { continue }
+            $memberDirectoryObjects = New-Object System.Collections.Generic.List[object]
+            foreach ($memberDn in @($group.member)) {
+                $memberObject = Resolve-AdMemberObject -Common $ctx.Common -DistinguishedName $memberDn -Cache $memberObjectCache
+                if ($memberObject) { $memberDirectoryObjects.Add($memberObject) }
+            }
             $allGroups.Add([pscustomobject]@{
                 Domain = $ctx.Domain; Name = $group.Name; DistinguishedName = $group.DistinguishedName
                 Description = $group.description; Info = $group.info; ManagedBy = $group.managedBy
                 Member = @($group.member); MemberOf = @($group.memberof)
+                MemberDirectoryObjects = $memberDirectoryObjects.ToArray()
                 GroupScope = "$($group.GroupScope)"; GroupCategory = "$($group.GroupCategory)"
                 Mail = $group.mail; AdminCount = $group.adminCount
                 WhenCreated = $group.whenCreated; WhenChanged = $group.whenChanged

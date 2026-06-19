@@ -2,8 +2,8 @@ BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
     $script:users = @(New-TestVendorUser)
     $script:dnIndex = @{ 'cn=john smith,ou=vendor,dc=corp,dc=example,dc=com' = 'John Smith' }
-    function New-R($name,$conf,$member=@(),$memberof=@(),$managedby='') {
-        [pscustomobject]@{ Domain='corp'; Name=$name; Confidence=$conf; Score=9
+    function New-R($name,$conf,$member=@(),$memberof=@(),$managedby='',$dn="CN=$name,DC=c") {
+        [pscustomobject]@{ Domain='corp'; Name=$name; DistinguishedName=$dn; Confidence=$conf; Score=9
             Member=@($member); MemberOf=@($memberof); ManagedBy=$managedby }
     }
 }
@@ -34,5 +34,26 @@ Describe 'Resolve-ResultDisplay' {
         $out = Resolve-ResultDisplay -Results @($r) -DnIndex $dnIndex -VendorUsers $users
         $out[0].Owner | Should -Be 'John Smith'
         (@($out[0].Members | Where-Object { $_ -like '*John Smith' }))[0] | Should -Be '*John Smith'
+    }
+    It 'adds structured member details with sam account names for known members' {
+        $bobDn = 'CN=Bob Jones,DC=x'
+        $r = New-R 'Acme Admins' 'High' @('CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com',$bobDn)
+        $r | Add-Member -NotePropertyName MemberDirectoryObjects -NotePropertyValue @(
+            [pscustomobject]@{ DistinguishedName=$bobDn; SamAccountName='bjones'
+                DisplayName='Bob Jones'; Name='Bob Jones'; ObjectClass='user' }
+        )
+        $out = Resolve-ResultDisplay -Results @($r) -DnIndex $dnIndex -VendorUsers $users
+        $out[0].MemberDetails[0].MemberType | Should -Be 'Known'
+        $out[0].MemberDetails[0].SamAccountName | Should -Be 'jsmith'
+        $out[0].MemberDetails[0].DisplayName | Should -Be 'John Smith'
+        $out[0].MemberDetails[1].MemberType | Should -Be 'Other'
+        $out[0].MemberDetails[1].SamAccountName | Should -Be 'bjones'
+        $out[0].MemberDetails[1].DisplayName | Should -Be 'Bob Jones'
+    }
+    It 'classifies selected group members as nested groups' {
+        $child = New-R 'Nested Admins' 'High' @() @() '' 'CN=Nested Admins,DC=c'
+        $parent = New-R 'Acme Admins' 'High' @('CN=Nested Admins,DC=c') @() '' 'CN=Acme Admins,DC=c'
+        $out = Resolve-ResultDisplay -Results @($parent,$child) -DnIndex @{} -VendorUsers $users
+        ($out | Where-Object Name -eq 'Acme Admins').MemberDetails[0].MemberType | Should -Be 'NestedGroup'
     }
 }

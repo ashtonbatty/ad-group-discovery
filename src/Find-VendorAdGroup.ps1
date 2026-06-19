@@ -43,7 +43,9 @@ function Find-VendorAdGroup {
     $activeFormats = $Formats | Where-Object { $_ -ne 'Console' }
     if ($activeFormats) { Write-Host "Writing reports ($($activeFormats -join ', '))..." }
     if ($Formats -contains 'Csv') {
-        Write-CsvReport -Results $selected -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv')
+        Write-CsvReport -Results $selected `
+            -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv') `
+            -MembersPath (Join-Path $OutputDirectory 'vendor-group-discovery-members.csv')
     }
     if ($Formats -contains 'Html') {
         Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-discovery.html')

@@ -244,6 +244,39 @@ Describe 'Get-AdDiscoveryData' {
         $data.Groups.Name | Should -Contain 'Acme Admins'
         $data.Groups[0].Member | Should -Contain $userDn
     }
+    It 'hydrates direct member directory objects for report shaping' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $memberDn = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $groupDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($memberDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADObject -ParameterFilter { $Identity -eq $memberDn } -MockWith {
+            [pscustomobject]@{ DistinguishedName=$memberDn; sAMAccountName='bjones'
+                displayName='Bob Jones'; name='Bob Jones'; objectClass=@('top','person','user') }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @('Acme')
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $memberObject = $data.Groups[0].MemberDirectoryObjects[0]
+        $memberObject.SamAccountName | Should -Be 'bjones'
+        $memberObject.DisplayName | Should -Be 'Bob Jones'
+        $memberObject.ObjectClass | Should -Be 'user'
+        Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $Identity -eq $memberDn }
+    }
     It 'discovers groups by keyword LDAP search' {
         $groupDn = 'CN=Acme Operators,OU=Groups,DC=corp,DC=example,DC=com'
         Mock -CommandName Get-ADUser -MockWith { @() }
