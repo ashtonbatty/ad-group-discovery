@@ -67,8 +67,8 @@ It returns `{ Results; Summary }`; reports are a side effect gated by `-Formats`
 
 Each group accumulates match *reasons*, which roll up to a confidence band (Low / Medium / High,
 plus **Confirmed** for groups in `known.csv`). Signals: vendor keyword in group name or
-container/OU (strong), `managedBy`/owner is a vendor user (strong), keyword or vendor-user mention
-in description/info (medium), group contains another vendor group (medium, propagated by
+container/OU (strong), `managedBy`/owner is a vendor user (strong), keyword, listed-user sam/email,
+or trusted-group mention in description/info (medium), group contains another vendor group (medium, propagated by
 `Expand-VendorGroupClosure`), vendor user is a direct member (weak, additive). `exclude.csv`
 suppresses groups; `-SecurityGroupsOnly` drops distribution groups; `-MinimumConfidence` filters
 the band. The fixture README (`tests/fixtures/README.md`) documents an exact expected-output

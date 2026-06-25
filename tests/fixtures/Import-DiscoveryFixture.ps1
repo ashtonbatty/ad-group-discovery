@@ -36,20 +36,18 @@ function Get-FixtureDiscoveryData {
         -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv')
 
     # The discovery targets the users listed in users.csv; resolve each against the
-    # directory and build identity tokens (AD attributes + CSV display name).
+    # directory and build description tokens from sam account name + AD mail.
     $discoveryBySam = @{}
     foreach ($cu in $inputData.Users) { $discoveryBySam[$cu.SamAccountName.ToLower()] = $cu }
 
     $vendorUsers = foreach ($u in $dir.Users) {
         $key = $u.SamAccountName.ToLower()
         if (-not $discoveryBySam.ContainsKey($key)) { continue }
-        $csv = $discoveryBySam[$key]
-        $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -DisplayName $u.DisplayName `
-            -GivenName $u.GivenName -Surname $u.Surname -Cn $u.DisplayName -Name $u.DisplayName `
-            -Upn $u.UserPrincipalName -Mail $u.Mail -CsvDisplayName $csv.DisplayName
+        $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -Mail $u.Mail
         [pscustomobject]@{
             SamAccountName    = $u.SamAccountName
             DisplayName       = $u.DisplayName
+            Mail              = $u.Mail
             Sid               = $u.Sid
             DistinguishedName = $u.DistinguishedName
             Tokens            = $tokens

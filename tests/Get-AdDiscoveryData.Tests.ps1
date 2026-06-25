@@ -33,7 +33,9 @@ Describe 'Get-AdDiscoveryData' {
         $data = Get-AdDiscoveryData -InputData $discoveryInput
         $data.Groups[0].Name | Should -Be 'Acme Admins'
         $data.Groups[0].Domain | Should -Be 'corp.example.com'
-        $data.VendorUsers[0].Tokens | Should -Contain 'John Smith'
+        $data.VendorUsers[0].Tokens | Should -Contain 'jsmith'
+        $data.VendorUsers[0].Tokens | Should -Contain 'jsmith@vendor.com'
+        $data.VendorUsers[0].Tokens | Should -Not -Contain 'John Smith'
         $data.FailedDomains.Count | Should -Be 0
     }
     It 'records a failed domain and continues' {
@@ -385,5 +387,122 @@ Describe 'Get-AdDiscoveryData' {
             Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
         (Get-AdDiscoveryData -InputData $inp).Groups.Name | Should -Contain 'Global Stewards'
+    }
+    It 'discovers description-owned groups transitively and queries each trusted name once per domain' {
+        $trustedDn = 'CN=Trusted Owners,OU=Groups,DC=corp,DC=example,DC=com'
+        $appDn = 'CN=Application Access,OU=Groups,DC=corp,DC=example,DC=com'
+        $portalDn = 'CN=Portal Access,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=Trusted Owners*' } -MockWith {
+            [pscustomobject]@{ Name='Trusted Owners'; DistinguishedName=$trustedDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*description=*Trusted Owners**' } -MockWith {
+            [pscustomobject]@{ Name='Application Access'; DistinguishedName=$appDn
+                description='Owner: Trusted Owners'; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*description=*Application Access**' } -MockWith {
+            [pscustomobject]@{ Name='Portal Access'; DistinguishedName=$portalDn
+                description='Owner: Application Access'; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $trustedDn } -MockWith {
+            [pscustomobject]@{ Name='Trusted Owners'; DistinguishedName=$trustedDn
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $appDn } -MockWith {
+            [pscustomobject]@{ Name='Application Access'; DistinguishedName=$appDn
+                description='Owner: Trusted Owners'; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $portalDn } -MockWith {
+            [pscustomobject]@{ Name='Portal Access'; DistinguishedName=$portalDn
+                description='Owner: Application Access'; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @()
+            KnownGroups = @(
+                [pscustomobject]@{ Domain='corp.example.com'; Identity='Trusted Owners' }
+                [pscustomobject]@{ Domain='corp.example.com'; Identity='TRUSTED OWNERS' }
+            )
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.Groups.Name | Should -Contain 'Application Access'
+        $data.Groups.Name | Should -Contain 'Portal Access'
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*Trusted Owners**'
+        }
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*Application Access**'
+        }
+    }
+    It 'maintains the trusted-name query ledger independently for each domain' {
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=Trusted Owners*' } -MockWith {
+            $domainDn = if ($Server -eq 'dc1') { 'DC=corp,DC=example,DC=com' } else { 'DC=partner,DC=example,DC=com' }
+            [pscustomobject]@{ Name='Trusted Owners'; DistinguishedName="CN=Trusted Owners,OU=Groups,$domainDn"
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -like 'CN=Trusted Owners,*' } -MockWith {
+            [pscustomobject]@{ Name='Trusted Owners'; DistinguishedName=$Identity
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @()
+            KnownGroups = @(
+                [pscustomobject]@{ Domain='corp.example.com'; Identity='Trusted Owners' }
+                [pscustomobject]@{ Domain='partner.example.com'; Identity='Trusted Owners' }
+            )
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='dc2'; Name='Partner' }
+            )
+        }
+
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $Server -eq 'dc1' -and $LDAPFilter -like '*description=*Trusted Owners**'
+        }
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $Server -eq 'dc2' -and $LDAPFilter -like '*description=*Trusted Owners**'
+        }
+    }
+    It 'does not issue a trusted-name description search for short (<4 char) names' {
+        $itDn = 'CN=IT,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=IT*' } -MockWith {
+            [pscustomobject]@{ Name='IT'; DistinguishedName=$itDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $itDn } -MockWith {
+            [pscustomobject]@{ Name='IT'; DistinguishedName=$itDn
+                description=''; info=''; managedBy=''; member=@(); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @()
+            Keywords    = @()
+            KnownGroups = @([pscustomobject]@{ Domain='corp.example.com'; Identity='IT' })
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADGroup -Exactly -Times 0 -ParameterFilter {
+            $LDAPFilter -like '*description=*IT**'
+        }
     }
 }

@@ -12,7 +12,9 @@ function Get-DescriptionMatchReasons {
             # (not Test-KeywordMatch) so this per-group/per-user hot path short-circuits
             # at the first match. Token hygiene (non-blank, >= 3 chars) is owned by
             # ConvertTo-IdentityTokens.
-            foreach ($tok in $u.Tokens) {
+            # Prefer the more specific email token when it contains the sam name,
+            # so the recorded reason reflects the owner format that actually hit.
+            foreach ($tok in @($u.Tokens | Sort-Object { $_.Length } -Descending)) {
                 if ($text.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                     $reasons.Add([pscustomobject]@{ Pattern = 'DescriptionUser'; Value = "$($u.SamAccountName) ~ $tok" })
                     break

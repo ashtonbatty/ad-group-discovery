@@ -2,7 +2,7 @@
 # once, not on every call in the per-group hot path.
 $script:MatchReasonWeights = @{
     NameKeyword = 3; ContainerKeyword = 3; Owner = 3
-    DescriptionUser = 2; DescriptionKeyword = 2; NestedVendorGroup = 2
+    DescriptionUser = 2; DescriptionGroup = 2; DescriptionKeyword = 2; NestedVendorGroup = 2
     MemberVendorUser = 1
 }
 

@@ -12,7 +12,7 @@ function New-TestVendorUser {
         Sid               = 'S-1-5-21-1-2-3-1001'
         DistinguishedName = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
     }
-    if ($WithTokens) { $u | Add-Member -NotePropertyName Tokens -NotePropertyValue @('jsmith','John Smith') }
+    if ($WithTokens) { $u | Add-Member -NotePropertyName Tokens -NotePropertyValue @('jsmith','jsmith@vendor.com') }
     $u
 }
 

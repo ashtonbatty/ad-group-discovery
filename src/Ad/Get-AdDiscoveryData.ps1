@@ -280,12 +280,11 @@ function Get-AdDiscoveryData {
                 $sid = "$($u.objectSid)"
                 if ($sid -and $sidSeen.ContainsKey($sid)) { continue }   # same physical user already resolved
                 if ($sid) { $sidSeen[$sid] = $true }
-                $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -DisplayName $u.displayName `
-                    -GivenName $u.givenName -Surname $u.sn -Cn $u.cn -Name $u.name `
-                    -Upn $u.userPrincipalName -Mail $u.mail -CsvDisplayName $csvUser.DisplayName
+                $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -Mail $u.mail
                 $vendorUsers.Add([pscustomobject]@{
                     SamAccountName    = $u.SamAccountName
                     DisplayName       = if ($u.displayName) { $u.displayName } else { $u.Name }
+                    Mail              = $u.mail
                     Sid               = $sid
                     DistinguishedName = $u.DistinguishedName
                     MemberOf          = @($u.memberOf)
@@ -393,39 +392,88 @@ function Get-AdDiscoveryData {
             }
         }
 
-        Write-Host "    nested parent group lookups..."
-        $frontier = New-Object System.Collections.Generic.List[string]
-        foreach ($dn in $candidateDns) { $frontier.Add($dn) }
-        $queriedChildren = @{}
+        # Candidate names become trusted only after the candidate has been found by
+        # an independent signal (or by a previously trusted name). Keep separate,
+        # per-domain ledgers for DNs and names so no related lookup is repeated.
+        Write-Host "    related group lookups..."
+        $queriedChildren = @{}       # child DN -> parent-membership query issued
+        $queriedGroupNames = @{}     # normalized group name -> description/info query issued
+        $hydratedByDn = @{}
         for ($round = 0; $round -lt 25; $round++) {
+            $changed = $false
+
+            # Hydration supplies authoritative names for candidates introduced as
+            # bare DNs (memberOf and DN-form known.csv entries), and is cached for
+            # final result shaping.
+            foreach ($dn in @($candidateDns)) {
+                $dnKey = $dn.ToLower()
+                if ($hydratedByDn.ContainsKey($dnKey)) { continue }
+                $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
+                $hydratedByDn[$dnKey] = $group
+            }
+
             $searchDns = @()
-            foreach ($dn in $frontier) {
+            foreach ($dn in @($candidateDns)) {
                 $key = $dn.ToLower()
                 if ($queriedChildren.ContainsKey($key)) { continue }
                 $queriedChildren[$key] = $true
                 $searchDns += $dn
             }
-            if ($searchDns.Count -eq 0) { break }
-            $newParents = New-Object System.Collections.Generic.List[string]
-            $parentClauses = @($searchDns | ForEach-Object { New-ExactFilter -Attribute 'member' -Value $_ })
-            foreach ($batch in @(Get-Batches -Items $parentClauses -BatchSize $ldapBatchSize)) {
-                $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
-                $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'nested parent group lookup' `
-                    -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                foreach ($group in @($groups)) {
-                    $before = $candidateDns.Count
-                    if (Add-CandidateGroup -Group $group -Seen $candidateSeen -List $candidateDns) {
-                        if ($candidateDns.Count -gt $before) { $newParents.Add($group.DistinguishedName) }
-                    }
+            if ($searchDns.Count -gt 0) {
+                $parentClauses = @($searchDns | ForEach-Object { New-ExactFilter -Attribute 'member' -Value $_ })
+                foreach ($batch in @(Get-Batches -Items $parentClauses -BatchSize $ldapBatchSize)) {
+                    $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
+                    $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'nested parent group lookup' `
+                        -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns) -gt 0) { $changed = $true }
                 }
             }
-            $frontier = $newParents
+
+            $newTrustedNames = New-Object System.Collections.Generic.List[string]
+            foreach ($group in @($hydratedByDn.Values)) {
+                if (-not $group) { continue }
+                $name = "$($group.Name)".Trim()
+                if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                $nameKey = $name.ToLower()
+                if ($queriedGroupNames.ContainsKey($nameKey)) { continue }
+                # Mark before issuing the LDAP call. A failed lookup is not retried
+                # later in this domain and cannot multiply queries across rounds.
+                $queriedGroupNames[$nameKey] = $true
+                # LDAP substring filters can't express word boundaries, so a short
+                # name ("IT", "App") would over-fetch a huge swath of the domain.
+                # Skip names under 4 chars; the engine word-boundary check remains
+                # the authority on what actually counts as a match.
+                if ($name.Length -lt 4) { continue }
+                $newTrustedNames.Add($name)
+            }
+            if ($newTrustedNames.Count -gt 0) {
+                $nameClauses = New-Object System.Collections.Generic.List[string]
+                foreach ($name in $newTrustedNames) {
+                    $nameClauses.Add((New-ContainsFilter -Attribute 'description' -Value $name))
+                    $nameClauses.Add((New-ContainsFilter -Attribute 'info' -Value $name))
+                }
+                foreach ($batch in @(Get-Batches -Items $nameClauses.ToArray() -BatchSize $ldapBatchSize)) {
+                    $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
+                    $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'description group-name search' `
+                        -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns) -gt 0) { $changed = $true }
+                }
+            }
+
+            $hasUnhydrated = $false
+            foreach ($dn in @($candidateDns)) {
+                if (-not $hydratedByDn.ContainsKey($dn.ToLower())) { $hasUnhydrated = $true; break }
+            }
+            if (-not $changed -and -not $hasUnhydrated) { break }
         }
 
-        Write-Host "    hydrating $($candidateDns.Count) candidate groups..."
+        Write-Host "    shaping $($candidateDns.Count) candidate groups..."
         $domainGroupCount = 0
         foreach ($dn in $candidateDns) {
-            $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
+            $group = $hydratedByDn[$dn.ToLower()]
+            if (-not $hydratedByDn.ContainsKey($dn.ToLower())) {
+                $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
+            }
             if (-not $group) { continue }
             $memberDirectoryObjects = New-Object System.Collections.Generic.List[object]
             foreach ($memberDn in @($group.member)) {

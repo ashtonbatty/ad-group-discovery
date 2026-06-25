@@ -19,7 +19,7 @@ Five CSV files, one per list (paths passed as parameters):
 
 | File | Columns | Notes |
 |---|---|---|
-| `users.csv` | `SamAccountName`, `DisplayName` (optional) | `SamAccountName` is the reliable join key. `DisplayName` is treated as one possible token only — it may be stale and may not match the directory. |
+| `users.csv` | `SamAccountName`, `DisplayName` (optional) | `SamAccountName` is the reliable join key. `DisplayName` is used for reporting only and is never a description-match token. |
 | `domains.csv` | `Domain`, `Server` (optional), `Name` (optional) | Each domain is queried via `-Server`. |
 | `keywords.csv` | `Keyword` | Vendor names **and** keywords, one per row. |
 | `knowngroups.csv` | `Domain`, `Identity` | `Identity` = group name or DN. Always included in the report, marked **Confirmed**. |
@@ -78,9 +78,8 @@ Per domain (`-Server <domain>`, optional `-Credential`):
   distinguishedName`.
 - **Resolve vendor users:** look up each `SamAccountName` in every discovered domain;
   pull `displayName, givenName, sn, cn, name, userPrincipalName, mail,
-  distinguishedName, objectSid`. Build an **identity token set** per user from the
-  AD-authoritative values **plus** the CSV-supplied `DisplayName` as alternates
-  (handles messy/stale data).
+  distinguishedName, objectSid`. Build description identity tokens only from the
+  resolved `sAMAccountName` and `mail`; display names remain reporting metadata.
 - **Directory index:** global `DN → name` and `SID → name` maps spanning **all**
   discovered domains (users *and* groups), so members, owners, and `memberOf` resolve
   cross-domain. Foreign SIDs from non-discovered domains are shown raw with an
@@ -96,13 +95,18 @@ Each pattern that fires emits a **match reason** (pattern name + the matched val
 | Group **container/OU** (in DN) contains keyword | Strong (3) | the OU + keyword |
 | **managedBy/owner** is a vendor user | Strong (3) | the user |
 | In **known-groups** list | Confirmed | — |
-| **Description/info** mentions a vendor user (id or any name token) | Medium (2) | user + matched token |
+| **Description/info** mentions a vendor user (`sAMAccountName` or email) | Medium (2) | user + matched token |
+| **Description/info** mentions a trusted group name | Medium (2) | the group name |
 | **Description/info** contains keyword | Medium (2) | the keyword |
 | Group **contains a confirmed vendor group** (nested) | Medium (2) | the child group |
 | Direct **member** is a vendor user | Weak (1, sums by count, capped) | the user(s) |
 
 Both `description` and `info` (the "notes" attribute, commonly used for extra
 documentation) are searched for the description-based patterns.
+
+Trusted group-name discovery begins with known or independently matched groups and
+propagates to groups found through description references. Each normalized group
+name is searched at most once per domain, using a per-domain query ledger.
 
 ## Confidence scoring
 
