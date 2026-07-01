@@ -76,6 +76,40 @@ managedBy/owner · member-is-vendor-user · nested-vendor-group closure · known
 exclude list · cross-domain foreign-security-principal (SID) resolution ·
 security-vs-distribution filtering · flat-vs-foldered directory structures.
 
+## User reports
+
+When `Find-VendorAdGroup` runs with `Formats @('Csv',...)`, it also writes two
+per-user CSVs alongside the group-discovery report.
+
+### vendor-user-accounts.csv
+
+One row per vendor user (20 rows for the Northwind fixture). Oracle overrides for
+meaningful account-audit values:
+
+| SamAccountName | Notable value |
+|----------------|---------------|
+| `gbell`  | `Enabled=False` — disabled account |
+| `vreyes` | `LockedOut=True`, `BadLogonCount=7` — locked account with failed logons |
+| `npetrova` | `PasswordNeverExpires=True`, `PasswordExpiry=''` — never-expires leaves expiry blank |
+
+All other users have `Enabled=True`, `LockedOut=False`, `PasswordNeverExpires=False`,
+`BadLogonCount=0`, `PasswordExpiry` derived from the fixed FileTime `133612200000000000`.
+
+### vendor-user-memberships.csv
+
+One row per (vendor user, group) membership. The combined source covers:
+- **Discovered-group side:** groups whose Member list resolves to the vendor user (via DN
+  or foreign-security-principal SID) — the only path that sees cross-domain memberships.
+- **memberOf side:** home-domain direct memberships from the user's memberOf list (deduped
+  against discovered rows).
+
+Oracle rows exercised by the fixture integration tests:
+
+| UserSamAccountName | GroupName | UserDomain | GroupDomain | How |
+|--------------------|-----------|------------|-------------|-----|
+| `ohaddad` | `NWT Application Owners` | `dmz.globex.net` | `corp.globex.com` | Cross-domain FSP member |
+| `ohaddad` | `Northwind RW` | `dmz.globex.net` | `dmz.globex.net` | Home-domain direct member |
+
 ## Using it
 
 ```powershell

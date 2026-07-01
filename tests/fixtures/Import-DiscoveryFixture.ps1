@@ -40,17 +40,42 @@ function Get-FixtureDiscoveryData {
     $discoveryBySam = @{}
     foreach ($cu in $inputData.Users) { $discoveryBySam[$cu.SamAccountName.ToLower()] = $cu }
 
+    # Reverse-index: user DN -> DNs of groups whose member list contains that user DN.
+    # This mirrors AD's memberOf (home-domain direct memberships only; cross-domain
+    # members appear as FSP SIDs, not the user's DN, so they are excluded here).
+    $memberOfByUserDn = @{}
+    foreach ($g in $dir.Groups) {
+        foreach ($m in @($g.Member)) {
+            $k = ([string]$m).ToLower()
+            if (-not $memberOfByUserDn.ContainsKey($k)) {
+                $memberOfByUserDn[$k] = New-Object System.Collections.Generic.List[string]
+            }
+            $memberOfByUserDn[$k].Add($g.DistinguishedName)
+        }
+    }
+
     $vendorUsers = foreach ($u in $dir.Users) {
         $key = $u.SamAccountName.ToLower()
         if (-not $discoveryBySam.ContainsKey($key)) { continue }
         $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -Mail $u.Mail
         [pscustomobject]@{
-            SamAccountName    = $u.SamAccountName
-            DisplayName       = $u.DisplayName
-            Mail              = $u.Mail
-            Sid               = $u.Sid
-            DistinguishedName = $u.DistinguishedName
-            Tokens            = $tokens
+            SamAccountName         = $u.SamAccountName
+            DisplayName            = $u.DisplayName
+            Mail                   = $u.Mail
+            Sid                    = $u.Sid
+            DistinguishedName      = $u.DistinguishedName
+            Tokens                 = $tokens
+            Domain                 = $u.Domain
+            MemberOf               = @($memberOfByUserDn[$u.DistinguishedName.ToLower()])
+            Enabled                = $u.Enabled
+            LockedOut              = $u.LockedOut
+            Description            = $u.Description
+            AccountExpirationDate  = $u.AccountExpirationDate
+            LastLogonDate          = $u.LastLogonDate
+            PasswordLastSet        = $u.PasswordLastSet
+            BadLogonCount          = $u.BadLogonCount
+            PasswordNeverExpires   = $u.PasswordNeverExpires
+            PasswordExpiryComputed = $u.PasswordExpiryComputed
         }
     }
     $vendorUsers = @($vendorUsers)

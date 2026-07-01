@@ -119,6 +119,8 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
         $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery.csv'))
         $script:memberRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery-members.csv'))
         $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-discovery.html') -Raw
+        $script:userMemberships = @(Import-Csv (Join-Path $script:outDir 'vendor-user-memberships.csv'))
+        $script:userAccounts    = @(Import-Csv (Join-Path $script:outDir 'vendor-user-accounts.csv'))
     }
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 
@@ -153,5 +155,40 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
         foreach ($dom in @('corp.globex.com','emea.globex.com','apac.globex.local','dmz.globex.net')) {
             $script:html | Should -Match ([regex]::Escape($dom))
         }
+    }
+
+    It 'writes an account row for each of the 20 vendor users' {
+        $script:userAccounts.Count | Should -Be 20
+    }
+
+    It 'reflects the disabled and locked oracle accounts' {
+        ($script:userAccounts | Where-Object UserSamAccountName -eq 'gbell').Enabled | Should -Be 'False'
+        $vreyes = $script:userAccounts | Where-Object UserSamAccountName -eq 'vreyes'
+        $vreyes.LockedOut | Should -Be 'True'
+        $vreyes.BadLogonCount | Should -Be '7'
+    }
+
+    It 'blanks PasswordExpiry for the never-expires oracle account' {
+        $np = $script:userAccounts | Where-Object UserSamAccountName -eq 'npetrova'
+        $np.PasswordNeverExpires | Should -Be 'True'
+        $np.PasswordExpiry | Should -Be ''
+    }
+
+    It 'includes a cross-domain membership row (FSP member of a group in another domain)' {
+        # Omar Haddad (dmz) is a foreign-security-principal member of NWT Application Owners (corp).
+        $row = $script:userMemberships | Where-Object {
+            $_.UserSamAccountName -eq 'ohaddad' -and $_.GroupName -eq 'NWT Application Owners'
+        }
+        $row | Should -Not -BeNullOrEmpty
+        $row.UserDomain  | Should -Be 'dmz.globex.net'
+        $row.GroupDomain | Should -Be 'corp.globex.com'
+    }
+
+    It 'includes a home-domain memberOf row' {
+        $row = $script:userMemberships | Where-Object {
+            $_.UserSamAccountName -eq 'ohaddad' -and $_.GroupName -eq 'Northwind RW'
+        }
+        $row | Should -Not -BeNullOrEmpty
+        $row.GroupDomain | Should -Be 'dmz.globex.net'
     }
 }

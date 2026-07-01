@@ -36,7 +36,16 @@
       "UserPrincipalName": "jbrooks@corp.globex.com",
       "Mail": "jbrooks@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "mhale",
@@ -48,7 +57,16 @@
       "UserPrincipalName": "mhale@corp.globex.com",
       "Mail": "mhale@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "tpatel",
@@ -60,7 +78,16 @@
       "UserPrincipalName": "tpatel@corp.globex.com",
       "Mail": "tpatel@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "lchen",
@@ -72,7 +99,16 @@
       "UserPrincipalName": "lchen@corp.globex.com",
       "Mail": "lchen@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "dokafor",
@@ -84,7 +120,16 @@
       "UserPrincipalName": "dokafor@corp.globex.com",
       "Mail": "dokafor@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "rsantos",
@@ -96,7 +141,16 @@
       "UserPrincipalName": "rsantos@corp.globex.com",
       "Mail": "rsantos@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "kvolkov",
@@ -108,7 +162,16 @@
       "UserPrincipalName": "kvolkov@corp.globex.com",
       "Mail": "kvolkov@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "awright",
@@ -120,7 +183,16 @@
       "UserPrincipalName": "awright@corp.globex.com",
       "Mail": "awright@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "bnguyen",
@@ -132,7 +204,16 @@
       "UserPrincipalName": "bnguyen@emea.globex.com",
       "Mail": "bnguyen@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "sfischer",
@@ -144,7 +225,16 @@
       "UserPrincipalName": "sfischer@emea.globex.com",
       "Mail": "sfischer@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "egarcia",
@@ -156,7 +246,16 @@
       "UserPrincipalName": "egarcia@emea.globex.com",
       "Mail": "egarcia@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "pnowak",
@@ -168,7 +267,16 @@
       "UserPrincipalName": "pnowak@emea.globex.com",
       "Mail": "pnowak@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "ytanaka",
@@ -180,7 +288,16 @@
       "UserPrincipalName": "ytanaka@apac.globex.local",
       "Mail": "ytanaka@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "wliu",
@@ -192,7 +309,16 @@
       "UserPrincipalName": "wliu@apac.globex.local",
       "Mail": "wliu@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "akapoor",
@@ -204,7 +330,16 @@
       "UserPrincipalName": "akapoor@apac.globex.local",
       "Mail": "akapoor@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "stui",
@@ -216,7 +351,16 @@
       "UserPrincipalName": "stui@apac.globex.local",
       "Mail": "stui@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "ohaddad",
@@ -228,7 +372,16 @@
       "UserPrincipalName": "ohaddad@dmz.globex.net",
       "Mail": "ohaddad@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "gbell",
@@ -240,7 +393,16 @@
       "UserPrincipalName": "gbell@dmz.globex.net",
       "Mail": "gbell@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": false,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "vreyes",
@@ -252,7 +414,16 @@
       "UserPrincipalName": "vreyes@dmz.globex.net",
       "Mail": "vreyes@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": true,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 7,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "npetrova",
@@ -264,7 +435,16 @@
       "UserPrincipalName": "npetrova@dmz.globex.net",
       "Mail": "npetrova@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Northwind"
+      "Org": "Northwind",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Northwind contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": true,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "9223372036854775807"
     },
     {
       "SamAccountName": "fmills",
@@ -276,7 +456,16 @@
       "UserPrincipalName": "fmills@corp.globex.com",
       "Mail": "fmills@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "ipark",
@@ -288,7 +477,16 @@
       "UserPrincipalName": "ipark@corp.globex.com",
       "Mail": "ipark@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "cdiaz",
@@ -300,7 +498,16 @@
       "UserPrincipalName": "cdiaz@emea.globex.com",
       "Mail": "cdiaz@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "hschmidt",
@@ -312,7 +519,16 @@
       "UserPrincipalName": "hschmidt@emea.globex.com",
       "Mail": "hschmidt@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "rmehta",
@@ -324,7 +540,16 @@
       "UserPrincipalName": "rmehta@apac.globex.local",
       "Mail": "rmehta@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "msaid",
@@ -336,7 +561,16 @@
       "UserPrincipalName": "msaid@apac.globex.local",
       "Mail": "msaid@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "lberg",
@@ -348,7 +582,16 @@
       "UserPrincipalName": "lberg@dmz.globex.net",
       "Mail": "lberg@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Contoso"
+      "Org": "Contoso",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Contoso contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "plind",
@@ -360,7 +603,16 @@
       "UserPrincipalName": "plind@corp.globex.com",
       "Mail": "plind@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "tford",
@@ -372,7 +624,16 @@
       "UserPrincipalName": "tford@corp.globex.com",
       "Mail": "tford@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "scohen",
@@ -384,7 +645,16 @@
       "UserPrincipalName": "scohen@emea.globex.com",
       "Mail": "scohen@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "badler",
@@ -396,7 +666,16 @@
       "UserPrincipalName": "badler@emea.globex.com",
       "Mail": "badler@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "mwong",
@@ -408,7 +687,16 @@
       "UserPrincipalName": "mwong@apac.globex.local",
       "Mail": "mwong@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "kshah",
@@ -420,7 +708,16 @@
       "UserPrincipalName": "kshah@apac.globex.local",
       "Mail": "kshah@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "eroth",
@@ -432,7 +729,16 @@
       "UserPrincipalName": "eroth@dmz.globex.net",
       "Mail": "eroth@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Fabrikam"
+      "Org": "Fabrikam",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Fabrikam contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "amorgan",
@@ -444,7 +750,16 @@
       "UserPrincipalName": "amorgan@corp.globex.com",
       "Mail": "amorgan@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "bturner",
@@ -456,7 +771,16 @@
       "UserPrincipalName": "bturner@corp.globex.com",
       "Mail": "bturner@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "clopez",
@@ -468,7 +792,16 @@
       "UserPrincipalName": "clopez@emea.globex.com",
       "Mail": "clopez@emea.globex.com",
       "Domain": "emea.globex.com",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "dwebb",
@@ -480,7 +813,16 @@
       "UserPrincipalName": "dwebb@apac.globex.local",
       "Mail": "dwebb@apac.globex.local",
       "Domain": "apac.globex.local",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "efrost",
@@ -492,7 +834,16 @@
       "UserPrincipalName": "efrost@dmz.globex.net",
       "Mail": "efrost@dmz.globex.net",
       "Domain": "dmz.globex.net",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     },
     {
       "SamAccountName": "ghunt",
@@ -504,7 +855,16 @@
       "UserPrincipalName": "ghunt@corp.globex.com",
       "Mail": "ghunt@corp.globex.com",
       "Domain": "corp.globex.com",
-      "Org": "Globex"
+      "Org": "Globex",
+      "Enabled": true,
+      "LockedOut": false,
+      "Description": "Globex contractor account",
+      "AccountExpirationDate": null,
+      "LastLogonDate": "2024-10-01T09:00:00",
+      "PasswordLastSet": "2024-06-01T09:00:00",
+      "PasswordNeverExpires": false,
+      "BadLogonCount": 0,
+      "PasswordExpiryComputed": "133612200000000000"
     }
   ],
   "Groups": [

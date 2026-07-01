@@ -99,20 +99,36 @@ $users = foreach ($r in $userRows) {
         $ouUser = 'CN=Users'
     }
     $u = [pscustomobject]@{
-        SamAccountName    = $sam
-        DisplayName       = $display
-        GivenName         = $given
-        Surname           = $sn
-        Sid               = "S-1-5-21-1001-2002-3003-$rid"
-        DistinguishedName = "CN=$display,$ouUser,$($m.Base)"
-        UserPrincipalName = "$sam@$($m.Fqdn)"
-        Mail              = "$sam@$($m.Fqdn)"
-        Domain            = $m.Fqdn
-        Org               = $org
+        SamAccountName         = $sam
+        DisplayName            = $display
+        GivenName              = $given
+        Surname                = $sn
+        Sid                    = "S-1-5-21-1001-2002-3003-$rid"
+        DistinguishedName      = "CN=$display,$ouUser,$($m.Base)"
+        UserPrincipalName      = "$sam@$($m.Fqdn)"
+        Mail                   = "$sam@$($m.Fqdn)"
+        Domain                 = $m.Fqdn
+        Org                    = $org
+        Enabled                = $true
+        LockedOut              = $false
+        Description            = "$org contractor account"
+        AccountExpirationDate  = $null
+        LastLogonDate          = '2024-10-01T09:00:00'
+        PasswordLastSet        = '2024-06-01T09:00:00'
+        PasswordNeverExpires   = $false
+        BadLogonCount          = 0
+        PasswordExpiryComputed = '133612200000000000'
     }
     $userBySam[$sam] = $u
     $u
 }
+
+# Deterministic overrides so the account-audit report has stable, meaningful oracle rows.
+($userBySam['gbell']).Enabled = $false                              # disabled account
+($userBySam['vreyes']).LockedOut = $true
+($userBySam['vreyes']).BadLogonCount = 7                            # locked account with bad logons
+($userBySam['npetrova']).PasswordNeverExpires = $true
+($userBySam['npetrova']).PasswordExpiryComputed = '9223372036854775807'   # never -> blank in report
 
 # --- Groups -------------------------------------------------------------------
 # Fields: Name, Dom, Cont(token), Desc, Owner(sam|''), Members(@sams),
