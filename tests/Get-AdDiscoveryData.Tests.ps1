@@ -22,7 +22,10 @@ Describe 'Get-AdDiscoveryData' {
             [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
                 CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail='jsmith@vendor.com'
                 DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
-                objectSid='S-1-5-21-1-2-3-1001' }
+                objectSid='S-1-5-21-1-2-3-1001'
+                Enabled=$true; LockedOut=$false; Description='vendor account'
+                AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
         }
     }
     It 'loads groups and resolves vendor users for a domain' {
@@ -37,6 +40,39 @@ Describe 'Get-AdDiscoveryData' {
         $data.VendorUsers[0].Tokens | Should -Contain 'jsmith@vendor.com'
         $data.VendorUsers[0].Tokens | Should -Not -Contain 'John Smith'
         $data.FailedDomains.Count | Should -Be 0
+    }
+    It 'records the home domain and audit fields on each vendor user' {
+        $discoveryInput = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $discoveryInput
+        $data.VendorUsers[0].Domain | Should -Be 'corp.example.com'
+        $data.VendorUsers[0].Description | Should -Be 'vendor account'
+        $data.VendorUsers[0].Enabled | Should -Be $true
+        ($data.VendorUsers[0].PSObject.Properties.Name) | Should -Contain 'PasswordExpiryComputed'
+    }
+    It 'keeps the first-resolved (home) domain when the same SID appears in a later domain' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@corp.example.com'; mail=$null
+                DistinguishedName='CN=John Smith,DC=corp,DC=example,DC=com'
+                objectSid='S-1-5-21-7-7-7-1001'
+                Enabled=$true; LockedOut=$false; Description=''
+                AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
+        }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';    Server='corp.example.com';    Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='partner.example.com'; Name='Partner' }
+            )
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.VendorUsers.Count | Should -Be 1
+        $data.VendorUsers[0].Domain | Should -Be 'corp.example.com'
     }
     It 'records a failed domain and continues' {
         Mock -CommandName Get-ADGroup -MockWith { throw 'server down' }
