@@ -46,6 +46,14 @@ function Find-VendorAdGroup {
         Write-CsvReport -Results $selected `
             -Path (Join-Path $OutputDirectory 'vendor-group-discovery.csv') `
             -MembersPath (Join-Path $OutputDirectory 'vendor-group-discovery-members.csv')
+
+        $memberships = Get-VendorUserMemberships -VendorUsers $data.VendorUsers -Groups $groups
+        Write-UserMembershipReport -Rows $memberships `
+            -Path (Join-Path $OutputDirectory 'vendor-user-memberships.csv')
+
+        $accounts = Get-VendorUserAccounts -VendorUsers $data.VendorUsers
+        Write-UserAccountReport -Rows $accounts `
+            -Path (Join-Path $OutputDirectory 'vendor-user-accounts.csv')
     }
     if ($Formats -contains 'Html') {
         Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-discovery.html')

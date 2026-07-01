@@ -16,11 +16,20 @@ Describe 'Find-VendorAdGroup' {
                 Groups = @(
                     [pscustomobject]@{ Domain='corp.example.com'; Name='Acme Admins'
                         DistinguishedName='CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
-                        Description='Acme app'; Info=''; ManagedBy=''; Member=@(); MemberOf=@()
+                        Description='Acme app'; Info=''; ManagedBy=''
+                        Member=@('CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'); MemberOf=@()
                         GroupScope='Global'; GroupCategory='Security'; Mail=$null; AdminCount=$null
                         WhenCreated=$null; WhenChanged=$null }
                 )
-                VendorUsers   = @()
+                VendorUsers   = @(
+                    [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'
+                        Sid='S-1-5-21-1-2-3-1001'; Domain='corp.example.com'
+                        DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+                        MemberOf=@('CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com')
+                        Enabled=$true; LockedOut=$false; Description='vendor'
+                        AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
+                        BadLogonCount=0; PasswordNeverExpires=$false; PasswordExpiryComputed='0' }
+                )
                 DnIndex       = @{}
                 FailedDomains = @()
                 Warnings      = @()
@@ -45,5 +54,17 @@ Describe 'Find-VendorAdGroup' {
         Should -Invoke Get-AdDiscoveryData -Exactly -Times 1 -ParameterFilter {
             $SecurityGroupsOnly
         }
+    }
+    It 'writes the user membership and account CSV reports' {
+        $out = Join-Path $tmp 'user-reports'
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
+            -OutputDirectory $out -Formats @('Csv')
+        Test-Path (Join-Path $out 'vendor-user-memberships.csv') | Should -BeTrue
+        Test-Path (Join-Path $out 'vendor-user-accounts.csv') | Should -BeTrue
+        $mem = @(Import-Csv (Join-Path $out 'vendor-user-memberships.csv'))
+        ($mem | Where-Object { $_.UserSamAccountName -eq 'jsmith' -and $_.GroupName -eq 'Acme Admins' }) | Should -Not -BeNullOrEmpty
+        $acc = @(Import-Csv (Join-Path $out 'vendor-user-accounts.csv'))
+        ($acc | Where-Object UserSamAccountName -eq 'jsmith').Enabled | Should -Be 'True'
     }
 }
