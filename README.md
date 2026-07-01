@@ -14,7 +14,7 @@ confidence-scored match reasons.
 
 | File | Columns |
 |------|---------|
-| users.csv | `SamAccountName`, `DisplayName` (optional) |
+| users.csv | `SamAccountName`, `UUserId` (optional), `DisplayName` (optional) |
 | domains.csv | `Domain`, `Server` (optional), `Name` (optional) |
 | keywords.csv | `Keyword` |
 | known.csv | `Domain`, `Identity` |
@@ -41,16 +41,17 @@ score (High / Medium / Low, or Confirmed for known groups):
 
 - Vendor keyword in the group **name** or its **container/OU** (strong)
 - **managedBy/owner** is a vendor user (strong)
-- Vendor keyword, a listed user's **sAMAccountName/email**, or a trusted group name
+- Vendor keyword, a listed user's **sAMAccountName/UUserId/email**, or a trusted group name
   in the **description/info** (medium)
 - Group **contains another vendor group** — propagated to closure (medium)
 - A vendor user is a direct **member** (weak; multiple members add up)
 
 Description owner matching deliberately excludes display names. User tokens come
-only from the `SamAccountName` in users.csv and the resolved AD user's `mail`
-attribute. Trusted group names start with known or independently matched groups and
-propagate to newly discovered description owners. A case-insensitive per-domain
-ledger ensures each trusted group name is queried only once in that domain.
+from the `SamAccountName` and optional `UUserId` in users.csv, plus the resolved
+AD user's `mail` attribute. Trusted group names start with known or independently
+matched groups and propagate to newly discovered description owners. A
+case-insensitive per-domain ledger ensures each trusted group name is queried only
+once in that domain.
 
 Members flagged with a leading `*` in HTML/console reports are vendor users.
 

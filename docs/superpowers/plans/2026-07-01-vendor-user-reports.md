@@ -379,7 +379,7 @@ Create `src/Engine/Get-VendorUserAccounts.ps1`:
 function Get-VendorUserAccounts {
     # Pure projection: one account-audit row per vendor user. Date fields are
     # formatted uniformly; PasswordExpiry is derived from the raw
-    # msDS-UserPasswordExpiryComputed FileTime carried as PasswordExpiryComputed.
+    # msDS-UserPasswordExpiryTimeComputed FileTime carried as PasswordExpiryComputed.
     [CmdletBinding()]
     param([object[]]$VendorUsers)
 
@@ -628,7 +628,7 @@ git commit -m "feat: add Write-UserAccountReport CSV writer"
 - Test: `tests/Get-AdDiscoveryData.Tests.ps1` (add assertions)
 
 **Interfaces:**
-- Produces: each object in `$data.VendorUsers` additionally carries `Domain` (the domain it was resolved in = home domain, kept by SID dedup) and `Enabled, LockedOut, Description, AccountExpirationDate, LastLogonDate, PasswordLastSet, BadLogonCount, PasswordNeverExpires, PasswordExpiryComputed` (from `msDS-UserPasswordExpiryComputed`). Existing fields unchanged.
+- Produces: each object in `$data.VendorUsers` additionally carries `Domain` (the domain it was resolved in = home domain, kept by SID dedup) and `Enabled, LockedOut, Description, AccountExpirationDate, LastLogonDate, PasswordLastSet, BadLogonCount, PasswordNeverExpires, PasswordExpiryComputed` (from `msDS-UserPasswordExpiryTimeComputed`). Existing fields unchanged.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -644,7 +644,7 @@ Extend the existing `Get-ADUser` mock (lines 21-26) to:
                 objectSid='S-1-5-21-1-2-3-1001'
                 Enabled=$true; LockedOut=$false; Description='vendor account'
                 AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
-                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryTimeComputed'='0' }
         }
 ```
 
@@ -676,7 +676,7 @@ Add the home-domain dedup assertion (the same physical SID resolved in the first
                 objectSid='S-1-5-21-7-7-7-1001'
                 Enabled=$true; LockedOut=$false; Description=''
                 AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
-                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryTimeComputed'='0' }
         }
         $inp = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
@@ -703,7 +703,7 @@ In `src/Ad/Get-AdDiscoveryData.ps1`, replace the `$userProps` line (line 13):
 ```powershell
     $userProps  = @('displayName','givenName','sn','cn','name','userPrincipalName','mail','objectSid','memberOf',
                     'enabled','lockedOut','description','accountExpirationDate','lastLogonDate',
-                    'passwordLastSet','badLogonCount','passwordNeverExpires','msDS-UserPasswordExpiryComputed')
+                    'passwordLastSet','badLogonCount','passwordNeverExpires','msDS-UserPasswordExpiryTimeComputed')
 ```
 
 Then in the vendor-user object (lines 284-292), add the new properties so the block reads:
@@ -726,7 +726,7 @@ Then in the vendor-user object (lines 284-292), add the new properties so the bl
                     PasswordLastSet   = $u.PasswordLastSet
                     BadLogonCount     = $u.BadLogonCount
                     PasswordNeverExpires   = $u.PasswordNeverExpires
-                    PasswordExpiryComputed = $u.'msDS-UserPasswordExpiryComputed'
+                    PasswordExpiryComputed = $u.'msDS-UserPasswordExpiryTimeComputed'
                 })
 ```
 
@@ -1015,7 +1015,7 @@ git commit -m "test: extend fixture with vendor user reports and end-to-end asse
 - CSV only, `Protect-CsvCell` hardening → Tasks 4 & 5. ✓
 - Always emit with `Csv` format, no new params → Task 7. ✓
 - Fixture + tests + README oracle (per CLAUDE.md) → Task 8. ✓
-- `msDS-UserPasswordExpiryComputed` sentinel guards (`0`, `Int64.MaxValue`) → Task 3 (impl + tests). ✓
+- `msDS-UserPasswordExpiryTimeComputed` sentinel guards (`0`, `Int64.MaxValue`) → Task 3 (impl + tests). ✓
 - `GroupName` = leaf CN → Task 1. ✓
 
 **Placeholder scan:** none — every code step contains full code; every run step has a command and expected result.

@@ -12,7 +12,7 @@ function Get-AdDiscoveryData {
     $memberObjectProps = @('sAMAccountName','displayName','name','objectClass')
     $userProps  = @('displayName','givenName','sn','cn','name','userPrincipalName','mail','objectSid','memberOf',
                     'enabled','lockedOut','description','accountExpirationDate','lastLogonDate',
-                    'passwordLastSet','badLogonCount','passwordNeverExpires','msDS-UserPasswordExpiryComputed')
+                    'passwordLastSet','badLogonCount','passwordNeverExpires','msDS-UserPasswordExpiryTimeComputed')
     $samBatchSize = 200   # names per OR'd -LDAPFilter; keeps each filter well under LDAP size limits
     $ldapBatchSize = 40   # DNs/tokens per OR'd group search
     $securityGroupClause = '(groupType:1.2.840.113556.1.4.803:=2147483648)'
@@ -282,9 +282,10 @@ function Get-AdDiscoveryData {
                 $sid = "$($u.objectSid)"
                 if ($sid -and $sidSeen.ContainsKey($sid)) { continue }   # same physical user already resolved
                 if ($sid) { $sidSeen[$sid] = $true }
-                $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -Mail $u.mail
+                $tokens = ConvertTo-IdentityTokens -SamAccountName $u.SamAccountName -UUserId $csvUser.UUserId -Mail $u.mail
                 $vendorUsers.Add([pscustomobject]@{
                     SamAccountName    = $u.SamAccountName
+                    UUserId           = $csvUser.UUserId
                     DisplayName       = if ($u.displayName) { $u.displayName } else { $u.Name }
                     Mail              = $u.mail
                     Sid               = $sid
@@ -300,7 +301,7 @@ function Get-AdDiscoveryData {
                     PasswordLastSet   = $u.PasswordLastSet
                     BadLogonCount     = $u.BadLogonCount
                     PasswordNeverExpires   = $u.PasswordNeverExpires
-                    PasswordExpiryComputed = $u.'msDS-UserPasswordExpiryComputed'
+                    PasswordExpiryComputed = $u.'msDS-UserPasswordExpiryTimeComputed'
                 })
                 $domainUserCount++
             }

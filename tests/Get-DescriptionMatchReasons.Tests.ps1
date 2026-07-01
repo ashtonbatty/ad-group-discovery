@@ -19,6 +19,10 @@ Describe 'Get-DescriptionMatchReasons' {
         $display = @(Get-DescriptionMatchReasons -Description 'Owner: John Smith (other)' -Info '' -Keywords @() -VendorUsers $users)
         @($display | Where-Object Pattern -eq 'DescriptionUser').Count | Should -Be 0
     }
+    It 'matches a UUserId token' {
+        $r = @(Get-DescriptionMatchReasons -Description 'Owner: U12345' -Info '' -Keywords @() -VendorUsers $users)
+        ($r | Where-Object Pattern -eq 'DescriptionUser').Value | Should -Match 'U12345'
+    }
     It 'emits at most one DescriptionUser reason per user' {
         $r = @(Get-DescriptionMatchReasons -Description 'jsmith and jsmith@vendor.com' -Info '' -Keywords @() -VendorUsers $users)
         ($r | Where-Object Pattern -eq 'DescriptionUser').Count | Should -Be 1

@@ -1,7 +1,7 @@
 BeforeAll {
     . "$PSScriptRoot/_TestHelpers.ps1"
     $script:tmp = New-TestTempDir -Prefix 'discovery'
-    Set-Content "$tmp/users.csv"        "SamAccountName,DisplayName`njsmith,John Smith"
+    Set-Content "$tmp/users.csv"        "SamAccountName,UUserId,DisplayName`njsmith,U12345,John Smith"
     Set-Content "$tmp/domains.csv"      "Domain,Server,Name`ncorp.example.com,dc1,Corp"
     Set-Content "$tmp/keywords.csv"     "Keyword`nAcme"
     Set-Content "$tmp/known.csv"        "Domain,Identity`ncorp.example.com,Acme Admins"
@@ -14,6 +14,7 @@ Describe 'Read-DiscoveryInput' {
         $r = Read-DiscoveryInput -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
             -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv"
         $r.Users[0].SamAccountName | Should -Be 'jsmith'
+        $r.Users[0].UUserId        | Should -Be 'U12345'
         $r.Domains[0].Domain       | Should -Be 'corp.example.com'
         $r.Keywords                | Should -Contain 'Acme'
         $r.KnownGroups[0].Identity | Should -Be 'Acme Admins'

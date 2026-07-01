@@ -228,7 +228,7 @@ if (-not (Test-Path -LiteralPath $inputDir)) { New-Item -ItemType Directory -Pat
 
 # users.csv - the 20 Northwind users
 $users | Where-Object Org -eq 'Northwind' |
-    Select-Object SamAccountName, DisplayName |
+    Select-Object SamAccountName, @{ Name = 'UUserId'; Expression = { 'U' + ([string]$_.Sid).Split('-')[-1] } }, DisplayName |
     Export-Csv -LiteralPath (Join-Path $inputDir 'users.csv') -NoTypeInformation -Encoding UTF8
 
 # domains.csv - all four discovered domains

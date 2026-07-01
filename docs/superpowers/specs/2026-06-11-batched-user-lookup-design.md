@@ -33,7 +33,7 @@ remaining domain. Wall-clock cost dominates multi-domain runs.
    escaping (defense in depth). Behavior delta: the suspicious warning now fires
    once per user instead of once per user per domain.
    Build a case-insensitive `sam → csvUser` hashtable so query results can be
-   mapped back to their CSV row (`CsvDisplayName` feeds `ConvertTo-IdentityTokens`).
+   mapped back to their CSV row (optional `UUserId` feeds `ConvertTo-IdentityTokens`).
 2. **Per domain**: chunk the valid sams at a constant `$samBatchSize = 200` and
    issue one `Get-ADUser -LDAPFilter <filter> -Properties $userProps` per chunk.
    D×U calls become D×⌈U/200⌉.
@@ -76,7 +76,7 @@ README's parameter table. Historical specs/plans are left as-is.
   one call per domain for ≤200 users; ⌈U/200⌉ calls when over the batch size;
   `-LDAPFilter` contains escaped values; per-domain warning on a throwing chunk;
   SID dedupe across domains unchanged; suspicious-sam skip (single warning);
-  CSV `DisplayName` reaches token building via the sam→csvUser map.
+  CSV `UUserId` reaches token building via the sam→csvUser map.
 - **`-MaxIterations` removal**: drop/adjust any test passing it through the
   public chain; `Expand-VendorGroupClosure.Tests.ps1` keeps its direct usage.
 - Fixture integration tests (`Fixture.Tests.ps1`) bypass the AD adapter and must

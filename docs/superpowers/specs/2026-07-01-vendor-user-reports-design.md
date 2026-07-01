@@ -54,11 +54,11 @@ directory.
 
 - Extend `$userProps` with: `Enabled`, `LockedOut`, `Description`, `AccountExpirationDate`,
   `LastLogonDate`, `PasswordLastSet`, `BadLogonCount`, `PasswordNeverExpires`, and the raw
-  `msDS-UserPasswordExpiryComputed`.
+  `msDS-UserPasswordExpiryTimeComputed`.
 - At the vendor-user creation site (inside the per-domain loop, `~line 284`, before SID
   dedup), add to the emitted `pscustomobject`:
   - `Domain = $d.Domain` — the domain currently being queried.
-  - The new audit fields (carried through verbatim; `msDS-UserPasswordExpiryComputed` kept
+  - The new audit fields (carried through verbatim; `msDS-UserPasswordExpiryTimeComputed` kept
     as the raw FileTime for downstream conversion).
 - **Home-domain guarantee:** the existing SID dedup keeps the *first-resolved* instance of a
   user. Because each domain is queried against its own DC (not a GC) with a sAM filter, the
@@ -92,7 +92,7 @@ These are **not** part of the matching pipeline and are **not** folded into
 #### `Get-VendorUserAccounts`
 - **Input:** `-VendorUsers`.
 - **Logic:** one row per user projecting the audit fields. Convert
-  `msDS-UserPasswordExpiryComputed` (raw Int64 FileTime) to `PasswordExpiry`:
+  `msDS-UserPasswordExpiryTimeComputed` (raw Int64 FileTime) to `PasswordExpiry`:
   - `0` → blank (password expired / must change at next logon).
   - `9223372036854775807` → blank (never expires; note `[datetime]::FromFileTime` **throws**
     on this value, so it must be guarded before conversion).
@@ -150,7 +150,7 @@ because of the discovered-group member side — a memberOf-only report would mis
   - `Get-VendorUserMemberships.Tests.ps1` — combined-source union, dedup by group DN,
     authoritative-name preference, DN→domain/CN parsing (incl. escaped commas), FSP-SID matching.
   - `Get-VendorUserAccounts.Tests.ps1` — field projection and the three
-    `msDS-UserPasswordExpiryComputed` cases (`0`, `Int64.MaxValue`, a real value).
+    `msDS-UserPasswordExpiryTimeComputed` cases (`0`, `Int64.MaxValue`, a real value).
   - `Write-UserMembershipReport.Tests.ps1` / `Write-UserAccountReport.Tests.ps1` — CSV shape,
     header, `Protect-CsvCell` hardening.
   - `Get-AdDiscoveryData` test asserting the vendor-user object carries `Domain` (home domain)

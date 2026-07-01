@@ -1,7 +1,7 @@
 function Get-VendorUserAccounts {
     # Pure projection: one account-audit row per vendor user. Date fields are
     # formatted uniformly; PasswordExpiry is derived from the raw
-    # msDS-UserPasswordExpiryComputed FileTime carried as PasswordExpiryComputed.
+    # msDS-UserPasswordExpiryTimeComputed FileTime carried as PasswordExpiryComputed.
     [CmdletBinding()]
     param([object[]]$VendorUsers)
 

@@ -19,7 +19,7 @@ Five CSV files, one per list (paths passed as parameters):
 
 | File | Columns | Notes |
 |---|---|---|
-| `users.csv` | `SamAccountName`, `DisplayName` (optional) | `SamAccountName` is the reliable join key. `DisplayName` is used for reporting only and is never a description-match token. |
+| `users.csv` | `SamAccountName`, `UUserId` (optional), `DisplayName` (optional) | `SamAccountName` is the reliable join key. `UUserId` is an additional description-match token. `DisplayName` is used for reporting only and is never a description-match token. |
 | `domains.csv` | `Domain`, `Server` (optional), `Name` (optional) | Each domain is queried via `-Server`. |
 | `keywords.csv` | `Keyword` | Vendor names **and** keywords, one per row. |
 | `knowngroups.csv` | `Domain`, `Identity` | `Identity` = group name or DN. Always included in the report, marked **Confirmed**. |
@@ -78,8 +78,9 @@ Per domain (`-Server <domain>`, optional `-Credential`):
   distinguishedName`.
 - **Resolve vendor users:** look up each `SamAccountName` in every discovered domain;
   pull `displayName, givenName, sn, cn, name, userPrincipalName, mail,
-  distinguishedName, objectSid`. Build description identity tokens only from the
-  resolved `sAMAccountName` and `mail`; display names remain reporting metadata.
+  distinguishedName, objectSid`. Build description identity tokens from the
+  resolved `sAMAccountName`, optional CSV `UUserId`, and `mail`; display names
+  remain reporting metadata.
 - **Directory index:** global `DN → name` and `SID → name` maps spanning **all**
   discovered domains (users *and* groups), so members, owners, and `memberOf` resolve
   cross-domain. Foreign SIDs from non-discovered domains are shown raw with an
@@ -95,7 +96,7 @@ Each pattern that fires emits a **match reason** (pattern name + the matched val
 | Group **container/OU** (in DN) contains keyword | Strong (3) | the OU + keyword |
 | **managedBy/owner** is a vendor user | Strong (3) | the user |
 | In **known-groups** list | Confirmed | — |
-| **Description/info** mentions a vendor user (`sAMAccountName` or email) | Medium (2) | user + matched token |
+| **Description/info** mentions a vendor user (`sAMAccountName`, `UUserId`, or email) | Medium (2) | user + matched token |
 | **Description/info** mentions a trusted group name | Medium (2) | the group name |
 | **Description/info** contains keyword | Medium (2) | the keyword |
 | Group **contains a confirmed vendor group** (nested) | Medium (2) | the child group |

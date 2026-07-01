@@ -25,7 +25,7 @@ Describe 'Get-AdDiscoveryData' {
                 objectSid='S-1-5-21-1-2-3-1001'
                 Enabled=$true; LockedOut=$false; Description='vendor account'
                 AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
-                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryTimeComputed'='0' }
         }
     }
     It 'loads groups and resolves vendor users for a domain' {
@@ -51,6 +51,42 @@ Describe 'Get-AdDiscoveryData' {
         $data.VendorUsers[0].Description | Should -Be 'vendor account'
         $data.VendorUsers[0].Enabled | Should -Be $true
         ($data.VendorUsers[0].PSObject.Properties.Name) | Should -Contain 'PasswordExpiryComputed'
+        $data.VendorUsers[0].PasswordExpiryComputed | Should -Be '0'
+    }
+    It 'requests the valid AD password-expiry-time computed attribute' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        $discoveryInput = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $discoveryInput
+        Should -Invoke Get-ADUser -Exactly -Times 1 -ParameterFilter {
+            $Properties -contains 'msDS-UserPasswordExpiryTimeComputed' -and
+            $Properties -notcontains 'msDS-UserPasswordExpiryComputed'
+        }
+    }
+    It 'adds UUserId from users.csv to user tokens and description searches' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=''
+                DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+                objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        $discoveryInput = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; UUserId='U12345'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $discoveryInput
+        $data.VendorUsers[0].UUserId | Should -Be 'U12345'
+        $data.VendorUsers[0].Tokens  | Should -Contain 'U12345'
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*U12345**' -and
+            $LDAPFilter -like '*info=*U12345**'
+        }
     }
     It 'keeps the first-resolved (home) domain when the same SID appears in a later domain' {
         Mock -CommandName Get-ADGroup -MockWith { @() }
@@ -61,7 +97,7 @@ Describe 'Get-AdDiscoveryData' {
                 objectSid='S-1-5-21-7-7-7-1001'
                 Enabled=$true; LockedOut=$false; Description=''
                 AccountExpirationDate=$null; LastLogonDate=$null; PasswordLastSet=$null
-                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryComputed'='0' }
+                BadLogonCount=0; PasswordNeverExpires=$false; 'msDS-UserPasswordExpiryTimeComputed'='0' }
         }
         $inp = [pscustomobject]@{
             Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
