@@ -15,7 +15,7 @@ confidence-scored match reasons.
 | File | Columns |
 |------|---------|
 | users.csv | `SamAccountName`, `UUserId` (optional), `DisplayName` (optional) |
-| domains.csv | `Domain`, `Server` (optional), `Name` (optional) |
+| domains.csv | `Domain`, `Server` (optional), `Name` (optional), `CredentialUser` (optional) |
 | keywords.csv | `Keyword` |
 | known.csv | `Domain`, `Identity` |
 | exclude.csv | `Domain`, `Identity` |
@@ -31,8 +31,34 @@ confidence-scored match reasons.
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
 ```
 
-Options: `-Formats Csv,Html,Console`, `-Credential`,
+Options: `-Formats Csv,Html,Console`, `-Credential`, `-DomainCredentials`,
 `-SecurityGroupsOnly`, `-MinimumConfidence Low|Medium|High|Confirmed`.
+
+## Per-domain credentials
+
+Use `-Credential` when the same alternate credential can query every domain. For
+one untrusted domain, add `CredentialUser` only to that row in `domains.csv`; the
+script prompts once for that account and uses it for queries to that domain.
+
+```csv
+Domain,Server,Name,CredentialUser
+corp.example.com,dc1.corp.example.com,Corp,
+isolated.example.com,dc1.isolated.example.com,Isolated,ISOLATED\svc-ad-read
+```
+
+For non-interactive module use, pass a domain-keyed credential map instead:
+
+```powershell
+$domainCredentials = @{
+    'isolated.example.com' = Get-Credential -UserName 'ISOLATED\svc-ad-read'
+}
+
+Find-VendorAdGroup `
+    -UsersCsv samples/users.csv -DomainsCsv samples/domains.csv `
+    -KeywordsCsv samples/keywords.csv -KnownGroupsCsv samples/known.csv `
+    -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out `
+    -DomainCredentials $domainCredentials
+```
 
 ## How groups are found
 

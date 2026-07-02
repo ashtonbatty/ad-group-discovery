@@ -3,6 +3,7 @@ function Get-AdDiscoveryData {
     param(
         [Parameter(Mandatory)][object]$InputData,
         [System.Management.Automation.PSCredential]$Credential,
+        [hashtable]$DomainCredentials,
         [switch]$SecurityGroupsOnly
     )
 
@@ -60,6 +61,66 @@ function Get-AdDiscoveryData {
     function New-ExactFilter {
         param([Parameter(Mandatory)][string]$Attribute, [Parameter(Mandatory)][string]$Value)
         "($Attribute=$(ConvertTo-LdapFilterValue -Value $Value))"
+    }
+
+    function Get-OptionalPropertyValue {
+        param([object]$InputObject, [Parameter(Mandatory)][string]$Name)
+        if (-not $InputObject) { return $null }
+        $property = $InputObject.PSObject.Properties[$Name]
+        if (-not $property) { return $null }
+        return $property.Value
+    }
+
+    function Get-CredentialFromMap {
+        param([hashtable]$CredentialMap, [Parameter(Mandatory)][string]$Domain)
+        if (-not $CredentialMap) { return $null }
+
+        $value = $null
+        $found = $false
+        if ($CredentialMap.ContainsKey($Domain)) {
+            $value = $CredentialMap[$Domain]
+            $found = $true
+        } else {
+            foreach ($key in @($CredentialMap.Keys)) {
+                if ("$key" -ieq $Domain) {
+                    $value = $CredentialMap[$key]
+                    $found = $true
+                    break
+                }
+            }
+        }
+
+        if (-not $found -or -not $value) { return $null }
+        if ($value -isnot [System.Management.Automation.PSCredential]) {
+            throw "DomainCredentials entry for '$Domain' must be a PSCredential."
+        }
+        return $value
+    }
+
+    function Get-DomainCredential {
+        param(
+            [Parameter(Mandatory)][object]$DomainRow,
+            [System.Management.Automation.PSCredential]$DefaultCredential,
+            [hashtable]$CredentialMap,
+            [Parameter(Mandatory)][hashtable]$PromptedCredentials
+        )
+
+        $domain = "$($DomainRow.Domain)"
+        $mappedCredential = Get-CredentialFromMap -CredentialMap $CredentialMap -Domain $domain
+        if ($mappedCredential) { return $mappedCredential }
+
+        $credentialUser = "$(Get-OptionalPropertyValue -InputObject $DomainRow -Name 'CredentialUser')".Trim()
+        if ([string]::IsNullOrWhiteSpace($credentialUser)) { return $DefaultCredential }
+
+        $cacheKey = $credentialUser.ToLowerInvariant()
+        if (-not $PromptedCredentials.ContainsKey($cacheKey)) {
+            $promptedCredential = Get-Credential -UserName $credentialUser -Message "Credential for AD discovery in $domain"
+            if (-not $promptedCredential) {
+                throw "Credential prompt was cancelled for '$domain' ($credentialUser)."
+            }
+            $PromptedCredentials[$cacheKey] = $promptedCredential
+        }
+        return $PromptedCredentials[$cacheKey]
     }
 
     function Invoke-AdGroupSearch {
@@ -295,6 +356,7 @@ function Get-AdDiscoveryData {
     $sidSeen       = @{}   # objectSid string -> already resolved (dedupe same physical user across domains)
     $failedGroupDomain = @{}
     $memberObjectCache = @{}
+    $promptedDomainCredentials = @{}
 
     # Validate CSV users once and index them by sam so batched query results can be
     # mapped back to their CSV row for token building.
@@ -318,7 +380,9 @@ function Get-AdDiscoveryData {
         $domainIndex++
         $server = if ($d.Server) { $d.Server } else { $d.Domain }
         $common = @{ Server = $server; ErrorAction = 'Stop' }
-        if ($Credential) { $common['Credential'] = $Credential }
+        $domainCredential = Get-DomainCredential -DomainRow $d -DefaultCredential $Credential `
+            -CredentialMap $DomainCredentials -PromptedCredentials $promptedDomainCredentials
+        if ($domainCredential) { $common['Credential'] = $domainCredential }
         $domainContexts.Add([pscustomobject]@{
             Index    = $domainIndex
             Domain   = $d.Domain

@@ -181,6 +181,57 @@ Describe 'Get-AdDiscoveryData' {
         $null = Get-AdDiscoveryData -InputData $inp
         Should -Invoke Get-ADUser -Exactly -Times 2
     }
+    It 'uses a domain-specific credential map entry instead of the default credential' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $secret = [System.Security.SecureString]::new()
+        $defaultCredential = [System.Management.Automation.PSCredential]::new('MGMT\svc-ad-read', $secret)
+        $isolatedCredential = [System.Management.Automation.PSCredential]::new('ISOLATED\svc-ad-read', $secret)
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='J Smith' })
+            Keywords = @()
+            KnownGroups = @()
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';     Server='corp-dc1';     Name='Corp' }
+                [pscustomobject]@{ Domain='isolated.example.com'; Server='isolated-dc1'; Name='Isolated' }
+            )
+        }
+        $domainCredentials = @{ 'isolated.example.com' = $isolatedCredential }
+
+        $null = Get-AdDiscoveryData -InputData $inp -Credential $defaultCredential -DomainCredentials $domainCredentials
+
+        Should -Invoke Get-ADUser -Exactly -Times 1 -ParameterFilter {
+            $Server -eq 'corp-dc1' -and $Credential -eq $defaultCredential
+        }
+        Should -Invoke Get-ADUser -Exactly -Times 1 -ParameterFilter {
+            $Server -eq 'isolated-dc1' -and $Credential -eq $isolatedCredential
+        }
+    }
+    It 'prompts once for a CredentialUser domain column and reuses the credential' {
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser  -MockWith { @() }
+        $secret = [System.Security.SecureString]::new()
+        $isolatedCredential = [System.Management.Automation.PSCredential]::new('ISOLATED\svc-ad-read', $secret)
+        Mock -CommandName Get-Credential -MockWith { $isolatedCredential }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='J Smith' })
+            Keywords = @()
+            KnownGroups = @()
+            Domains = @(
+                [pscustomobject]@{ Domain='isolated.example.com'; Server='isolated-dc1'; Name='Isolated'; CredentialUser='ISOLATED\svc-ad-read' }
+                [pscustomobject]@{ Domain='isolated-child.example.com'; Server='isolated-dc2'; Name='Isolated Child'; CredentialUser='ISOLATED\svc-ad-read' }
+            )
+        }
+
+        $null = Get-AdDiscoveryData -InputData $inp
+
+        Should -Invoke Get-Credential -Exactly -Times 1 -ParameterFilter {
+            $UserName -eq 'ISOLATED\svc-ad-read' -and $Message -like '*isolated.example.com*'
+        }
+        Should -Invoke Get-ADUser -Exactly -Times 2 -ParameterFilter {
+            $Credential -eq $isolatedCredential
+        }
+    }
     It 'builds a sorted OR filter over all valid sams' {
         Mock -CommandName Get-ADGroup -MockWith { @() }
         Mock -CommandName Get-ADUser  -MockWith { @() }

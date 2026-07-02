@@ -55,6 +55,20 @@ Describe 'Find-VendorAdGroup' {
             $SecurityGroupsOnly
         }
     }
+    It 'passes DomainCredentials through to AD discovery' {
+        $out = Join-Path $tmp 'domain-credential-reports'
+        $secret = [System.Security.SecureString]::new()
+        $isolatedCredential = [System.Management.Automation.PSCredential]::new('ISOLATED\svc-ad-read', $secret)
+        $domainCredentials = @{ 'isolated.example.com' = $isolatedCredential }
+
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
+            -OutputDirectory $out -Formats @('Csv') -DomainCredentials $domainCredentials
+
+        Should -Invoke Get-AdDiscoveryData -Exactly -Times 1 -ParameterFilter {
+            $DomainCredentials['isolated.example.com'] -eq $isolatedCredential
+        }
+    }
     It 'writes the user membership and account CSV reports' {
         $out = Join-Path $tmp 'user-reports'
         Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
