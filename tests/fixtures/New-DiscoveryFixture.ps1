@@ -13,7 +13,7 @@
       * 4 organisations: 3 vendors (Northwind Traders [PRIMARY/discovered], Contoso,
         Fabrikam) and the customer org (Globex, non-vendor).
       * 40 users (20 Northwind, 7 Contoso, 7 Fabrikam, 6 Globex).
-      * 20 groups (10 Northwind-related, 10 other).
+      * 24 groups (12 Northwind-related, 12 other).
       * 2 directory structures:
           - Structure A (corp, emea): vendor groups foldered into per-vendor
             OUs (OU=<Vendor>,OU=Vendors); customer groups in OU=Groups.
@@ -145,6 +145,8 @@ $groupRows = @(
     @{ Name='Northwind RW'; Dom='dmz'; Cont='GR'; Desc='Northwind read-write file share access.'; Owner=''; Members=@('ohaddad','gbell'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Northwind' }
     @{ Name='Global Logistics Stewards'; Dom='corp'; Cont='GR'; Desc='Logistics governance stewards and change approvers.'; Owner=''; Members=@(); MemberGroups=@('Northwind Traders Admins'); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Northwind' }
     @{ Name='Project Atlas Team'; Dom='corp'; Cont='GR'; Desc='Project Atlas delivery team workspace access.'; Owner=''; Members=@('bturner'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Northwind' }
+    @{ Name='Freight Portal Ops'; Dom='corp'; Cont='GR'; Desc='Freight portal operations crew for carrier scheduling.'; Owner=''; Members=@('kvolkov','awright'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Northwind' }
+    @{ Name='Freight Terminal Access'; Dom='corp'; Cont='GR'; Desc='Terminal booking system access. Managed by Freight Portal Ops.'; Owner=''; Members=@('amorgan'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Northwind' }
     @{ Name='Contoso Service Desk'; Dom='corp'; Cont='CO'; Desc='Contoso managed service desk operators.'; Owner=''; Members=@('fmills','ipark'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Contoso' }
     @{ Name='Contoso Billing Admins'; Dom='emea'; Cont='CO'; Desc='Contoso billing administration.'; Owner=''; Members=@('cdiaz'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Contoso' }
     @{ Name='Contoso EDI Integration'; Dom='apac'; Cont='GR'; Desc='Contoso EDI integration endpoints.'; Owner=''; Members=@('rmehta'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Contoso' }
@@ -155,6 +157,12 @@ $groupRows = @(
     @{ Name='Globex Helpdesk'; Dom='emea'; Cont='GR'; Desc='Globex internal helpdesk.'; Owner=''; Members=@('clopez'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Globex' }
     @{ Name='All Staff'; Dom='apac'; Cont='GR'; Desc='All APAC staff distribution list.'; Owner=''; Members=@('ytanaka','wliu','rmehta','mwong','dwebb'); MemberGroups=@(); Fsid=@(); Scope='Universal'; Cat='Distribution'; Admin=$false; Mail='all-staff@apac.globex.local'; Org='Globex' }
     @{ Name='Globex All Employees'; Dom='dmz'; Cont='GR'; Desc='All Globex employees.'; Owner=''; Members=@('ohaddad','gbell','eroth','efrost'); MemberGroups=@(); Fsid=@(); Scope='Universal'; Cat='Distribution'; Admin=$false; Mail='all-employees@dmz.globex.net'; Org='Globex' }
+    # Built-in group with an incidental vendor member (jbrooks): surfaces as Low,
+    # but its generic name must NOT become a trusted description token.
+    @{ Name='Domain Admins'; Dom='corp'; Cont='BI'; Desc='Designated administrators of the domain.'; Owner=''; Members=@('amorgan','ghunt','jbrooks'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$true; Mail=$null; Org='Globex' }
+    # Decoy: mentions Domain Admins in its description but has no vendor link;
+    # must not surface (regression guard for description-name trust).
+    @{ Name='SQL Backup Operators'; Dom='corp'; Cont='GR'; Desc='SQL estate backup job operators. Escalations handled by Domain Admins.'; Owner=''; Members=@('bturner'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Globex' }
 )
 
 function Get-ContainerPath([string]$token) {
@@ -163,6 +171,7 @@ function Get-ContainerPath([string]$token) {
         'CO' { 'OU=Contoso,OU=Vendors' }
         'FA' { 'OU=Fabrikam,OU=Vendors' }
         'GR' { 'OU=Groups' }
+        'BI' { 'CN=Users' }
         default { throw "Unknown container token '$token'" }
     }
 }

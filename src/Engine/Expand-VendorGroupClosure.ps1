@@ -11,9 +11,21 @@ function Expand-VendorGroupClosure {
         $trustedNames = @{}
         foreach ($r in $Results) {
             if ($r.IsKnown -or $rank[$r.Confidence] -ge $seedRank) { $confirmed[$r.DistinguishedName.ToLower()] = $r }
-            # Any independently matched group is trusted as a description owner.
-            # DescriptionGroup itself is a valid propagated signal on later rounds.
-            if ($r.IsKnown -or $rank[$r.Confidence] -ge $rank['Low']) {
+            # Any independently matched group is trusted as a description owner --
+            # but vendor membership alone is not independent evidence. A vendor
+            # account sitting in a shared or built-in group ("Domain Admins",
+            # "Administrators") must not turn that group's name into a trusted
+            # token, or every unrelated group whose description mentions it gets
+            # promoted. Member-only groups still seed when the membership is
+            # exclusively vendor users (a vendor-dedicated group) or the group is
+            # listed in known.csv. DescriptionGroup itself is a non-member reason,
+            # so trust keeps propagating transitively on later rounds.
+            $trustEligible = $r.IsKnown
+            if (-not $trustEligible -and $rank[$r.Confidence] -ge $rank['Low']) {
+                $nonMemberReasons = @(@($r.Reasons) | Where-Object { $_.Pattern -ne 'MemberVendorUser' })
+                $trustEligible = ($nonMemberReasons.Count -gt 0) -or [bool]$r.AllMembersVendor
+            }
+            if ($trustEligible) {
                 $name = "$($r.Name)".Trim()
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
                     $nameKey = $name.ToLower()

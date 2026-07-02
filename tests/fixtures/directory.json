@@ -1071,6 +1071,45 @@
     },
     {
       "Domain": "corp.globex.com",
+      "Name": "Freight Portal Ops",
+      "DistinguishedName": "CN=Freight Portal Ops,OU=Groups,DC=corp,DC=globex,DC=com",
+      "Description": "Freight portal operations crew for carrier scheduling.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=Kiril Volkov,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com",
+        "CN=Aisha Wright,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": null,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Northwind"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "Freight Terminal Access",
+      "DistinguishedName": "CN=Freight Terminal Access,OU=Groups,DC=corp,DC=globex,DC=com",
+      "Description": "Terminal booking system access. Managed by Freight Portal Ops.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=Alice Morgan,OU=Staff,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": null,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Northwind"
+    },
+    {
+      "Domain": "corp.globex.com",
       "Name": "Contoso Service Desk",
       "DistinguishedName": "CN=Contoso Service Desk,OU=Contoso,OU=Vendors,DC=corp,DC=globex,DC=com",
       "Description": "Contoso managed service desk operators.",
@@ -1265,6 +1304,46 @@
       "GroupScope": "Universal",
       "GroupCategory": "Distribution",
       "Mail": "all-employees@dmz.globex.net",
+      "AdminCount": null,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Globex"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "Domain Admins",
+      "DistinguishedName": "CN=Domain Admins,CN=Users,DC=corp,DC=globex,DC=com",
+      "Description": "Designated administrators of the domain.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=Alice Morgan,OU=Staff,DC=corp,DC=globex,DC=com",
+        "CN=George Hunt,OU=Staff,DC=corp,DC=globex,DC=com",
+        "CN=Jacob Brooks,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": 1,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Globex"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "SQL Backup Operators",
+      "DistinguishedName": "CN=SQL Backup Operators,OU=Groups,DC=corp,DC=globex,DC=com",
+      "Description": "SQL estate backup job operators. Escalations handled by Domain Admins.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=Bob Turner,OU=Staff,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
       "AdminCount": null,
       "WhenCreated": "2021-06-01T09:00:00",
       "WhenChanged": "2024-10-15T14:30:00",

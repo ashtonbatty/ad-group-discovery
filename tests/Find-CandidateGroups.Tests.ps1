@@ -26,4 +26,21 @@ Describe 'Find-CandidateGroups' {
         $g = New-TestGroup 'Finance' 'CN=Finance,OU=Groups,DC=corp,DC=example,DC=com'
         (@(Find-CandidateGroups -Groups @($g) -Keywords @('Acme') -VendorUsers $users -KnownKeys @{} -ExcludeKeys @{}))[0].Confidence | Should -Be 'None'
     }
+    It 'flags AllMembersVendor when every member resolves to a vendor user' {
+        $g = New-TestGroup 'Support Staff' 'CN=Support Staff,OU=Groups,DC=corp,DC=example,DC=com' `
+            -Member @($users[0].DistinguishedName)
+        $res = @(Find-CandidateGroups -Groups @($g) -Keywords @() -VendorUsers $users -KnownKeys @{} -ExcludeKeys @{})
+        $res[0].AllMembersVendor | Should -BeTrue
+    }
+    It 'does not flag AllMembersVendor when membership is mixed' {
+        $g = New-TestGroup 'Domain Admins' 'CN=Domain Admins,CN=Users,DC=corp,DC=example,DC=com' `
+            -Member @($users[0].DistinguishedName, 'CN=Jane Roe,OU=Staff,DC=corp,DC=example,DC=com')
+        $res = @(Find-CandidateGroups -Groups @($g) -Keywords @() -VendorUsers $users -KnownKeys @{} -ExcludeKeys @{})
+        $res[0].AllMembersVendor | Should -BeFalse
+    }
+    It 'does not flag AllMembersVendor on an empty group' {
+        $g = New-TestGroup 'Empty Shell' 'CN=Empty Shell,OU=Groups,DC=corp,DC=example,DC=com'
+        $res = @(Find-CandidateGroups -Groups @($g) -Keywords @() -VendorUsers $users -KnownKeys @{} -ExcludeKeys @{})
+        $res[0].AllMembersVendor | Should -BeFalse
+    }
 }

@@ -23,6 +23,14 @@ function Find-CandidateGroups {
         $cc = Get-MatchConfidence -Reasons $reasons -IsKnown:$isKnown
         $source = if ($isKnown) { 'Known' } else { 'Discovered' }
 
+        # A group is vendor-dedicated when every member resolves to a vendor user
+        # (each resolvable member yields exactly one MemberVendorUser reason).
+        # Expand-VendorGroupClosure uses this to decide whether a member-only
+        # match may seed description-name trust.
+        $memberDns = @(@($g.Member) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $vendorMemberCount = @($reasons | Where-Object { $_.Pattern -eq 'MemberVendorUser' }).Count
+        $allMembersVendor = ($memberDns.Count -gt 0 -and $vendorMemberCount -eq $memberDns.Count)
+
         $results.Add([pscustomobject]@{
             Domain = $g.Domain; Name = $g.Name; DistinguishedName = $g.DistinguishedName
             Description = $g.Description; Info = $g.Info; ManagedBy = $g.ManagedBy
@@ -31,6 +39,7 @@ function Find-CandidateGroups {
             GroupScope = $g.GroupScope; GroupCategory = $g.GroupCategory; Mail = $g.Mail
             AdminCount = $g.AdminCount; WhenCreated = $g.WhenCreated; WhenChanged = $g.WhenChanged
             Reasons = $reasons; Score = $cc.Score; Confidence = $cc.Confidence
+            AllMembersVendor = $allMembersVendor
             IsKnown = $isKnown; Source = $source
         })
     }

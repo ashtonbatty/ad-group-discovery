@@ -16,11 +16,15 @@ BeforeAll {
         'APAC Vendor Access'        = 'High'
         'Northwind RW'              = 'High'
         'Global Logistics Stewards' = 'Medium'
+        'Freight Portal Ops'        = 'Medium'
+        'Freight Terminal Access'   = 'Medium'
+        'Domain Admins'             = 'Low'
     }
     $script:absent = @(
         'Contoso Service Desk','Contoso Billing Admins','Contoso EDI Integration',
         'Fabrikam Plant Ops','Fabrikam QA Team','Fabrikam Sensor Net',
-        'Globex IT Admins','Globex Helpdesk','All Staff','Globex All Employees'
+        'Globex IT Admins','Globex Helpdesk','All Staff','Globex All Employees',
+        'SQL Backup Operators'
     )
 }
 
@@ -34,7 +38,7 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
         foreach ($r in $sel) { $script:byName[$r.Name] = $r }
     }
 
-    It 'surfaces exactly the 10 expected groups' {
+    It 'surfaces exactly the 13 expected groups' {
         $expected = @($script:expectedBand.Keys | Sort-Object)
         $actual   = @($script:sel.Name | Sort-Object)
         $actual | Should -Be $expected
@@ -50,6 +54,24 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
         $g = $script:byName['Global Logistics Stewards']
         $g.Confidence | Should -Be 'Medium'
         @($g.Reasons | Where-Object { $_.Pattern -eq 'NestedVendorGroup' }).Count | Should -BeGreaterThan 0
+    }
+
+    It 'surfaces Domain Admins itself (vendor member) but not groups that merely mention it' {
+        # jbrooks sits in Domain Admins, so the group is a legitimate Low finding --
+        # but its generic name must not become a trusted description token, or
+        # unrelated groups whose descriptions reference Domain Admins would be
+        # promoted with no vendor link.
+        $script:byName['Domain Admins'].Confidence | Should -Be 'Low'
+        $script:sel.Name | Should -Not -Contain 'SQL Backup Operators'
+    }
+
+    It 'promotes a group whose description names a vendor-dedicated member-only group' {
+        # Freight Portal Ops has no keyword signal, only vendor members -- but the
+        # membership is exclusively vendor users, so its name still seeds
+        # description trust and Freight Terminal Access is promoted.
+        $g = $script:byName['Freight Terminal Access']
+        ($g.Reasons | Where-Object { $_.Pattern -eq 'DescriptionGroup' }).Value | Should -Be 'Freight Portal Ops'
+        $g.Confidence | Should -Be 'Medium'
     }
 
     It 'marks the known group Confirmed with Source=Known' {
@@ -95,7 +117,7 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
         $s = Invoke-DiscoveryEngine -Groups $secGroups -InputData $script:data.InputData `
             -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex
 
-        $s.Count | Should -Be 9
+        $s.Count | Should -Be 12
         $s.Name  | Should -Not -Contain 'Northwind Support'
         $s.Name  | Should -Contain 'Northwind Traders Admins'
     }
@@ -125,7 +147,7 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 
     It 'writes a CSV with one row per surfaced group' {
-        $script:csvRows.Count | Should -Be 10
+        $script:csvRows.Count | Should -Be 13
     }
 
     It 'records the closure reason in the CSV' {

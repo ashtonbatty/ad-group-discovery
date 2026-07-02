@@ -8,7 +8,7 @@ Vendor AD Group Discovery engine without a live directory.
 | File | What it is |
 |------|------------|
 | `New-DiscoveryFixture.ps1` | Deterministic generator. Re-run to regenerate everything below. |
-| `directory.json` | The simulated directory: 4 domains, 40 users, 20 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdDiscoveryData` would return from a real forest. |
+| `directory.json` | The simulated directory: 4 domains, 40 users, 24 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdDiscoveryData` would return from a real forest. |
 | `discovery-input/*.csv` | The five discovery-input lists for discovering the **primary vendor (Northwind Traders)**: `users.csv`, `domains.csv`, `keywords.csv`, `known.csv`, `exclude.csv`. |
 | `Import-DiscoveryFixture.ps1` | Loader bridge: turns the JSON + CSVs into a `Get-AdDiscoveryData`-shaped object (`Groups`, `VendorUsers` with `Tokens`, `DnIndex`, …) so the rest of the pipeline runs with no AD and no mocking. |
 | `Show-FixtureDiscovery.ps1` | Runnable demo / smoke test that runs the engine over the fixture and prints the surfaced groups. |
@@ -34,7 +34,8 @@ naming/TLDs and two different group-organisation conventions:
 four domains. Vendor contractors live in `OU=Contractors,OU=Vendors` (structure A)
 or `CN=Users` (structure B); Globex staff in `OU=Staff` / `CN=Users`.
 
-**Groups (20):** 10 Northwind-related, 10 other (Contoso ×3, Fabrikam ×3, Globex ×4).
+**Groups (24):** 12 Northwind-related, 12 other (Contoso ×3, Fabrikam ×3, Globex ×6 —
+including a built-in-style `Domain Admins` in corp's `CN=Users` container).
 
 So **half the users and half the groups belong to the discovered vendor**, as required.
 
@@ -46,8 +47,8 @@ So **half the users and half the groups belong to the discovered vendor**, as re
 
 ### Expected result (the oracle)
 
-Running the engine over this fixture for Northwind surfaces **exactly the 10
-Northwind-related groups** and none of the decoys. Each row below is what
+Running the engine over this fixture for Northwind surfaces **exactly 13
+groups** and none of the decoys. Each row below is what
 `Show-FixtureDiscovery.ps1` prints:
 
 | Group | Domain | Band | Why it matched |
@@ -61,10 +62,15 @@ Northwind-related groups** and none of the decoys. Each row below is what
 | APAC Vendor Access | apac (B, flat) | High | Description keyword + member + **contains another vendor group** (Traders Data Feed) |
 | Northwind RW | dmz (B, flat) | High | Name keyword + members |
 | Global Logistics Stewards | corp (flat) | **Medium** | **Closure only** — no direct signal; promoted because it contains "Northwind Traders Admins" |
+| Freight Portal Ops | corp (flat) | **Medium** | Members only — but **every member is a vendor user**, so the group is vendor-dedicated and its name seeds description trust |
+| Freight Terminal Access | corp (flat) | **Medium** | **Description-group closure** — description says "Managed by Freight Portal Ops" |
 | Project Atlas Team | corp (flat) | **Confirmed** | In `known.csv` — no automatic signal otherwise |
+| Domain Admins | corp (`CN=Users`) | **Low** | Incidental vendor member (jbrooks) — worth flagging, but its **generic name is not trusted** for description matching (membership is mixed) |
 
 **Correctly NOT surfaced** (precision): all Contoso, Fabrikam and Globex-only
-groups (e.g. `Contoso Service Desk`, `Fabrikam Plant Ops`, `Globex IT Admins`).
+groups (e.g. `Contoso Service Desk`, `Fabrikam Plant Ops`, `Globex IT Admins`),
+and — the description-trust regression guard — `SQL Backup Operators`, whose
+description mentions `Domain Admins` but which has no vendor link of its own.
 
 **Excluded** (would otherwise surface as Low because they contain Northwind
 members): `All Staff` (apac) and `Globex All Employees` (dmz).
@@ -72,7 +78,9 @@ members): `All Staff` (apac) and `Globex All Employees` (dmz).
 ### Patterns exercised
 
 Name keyword · container/OU keyword · description keyword · description-mentions-user ·
-managedBy/owner · member-is-vendor-user · nested-vendor-group closure · known list ·
+managedBy/owner · member-is-vendor-user · nested-vendor-group closure ·
+description-mentions-group closure (vendor-dedicated member-only group trusted;
+mixed-membership generic name not trusted) · known list ·
 exclude list · cross-domain foreign-security-principal (SID) resolution ·
 security-vs-distribution filtering · flat-vs-foldered directory structures.
 
