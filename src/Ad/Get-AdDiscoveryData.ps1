@@ -79,7 +79,13 @@ function Get-AdDiscoveryData {
         if ($Properties) { $query['Properties'] = $Properties }
         if (-not [string]::IsNullOrWhiteSpace($SearchBase)) { $query['SearchBase'] = $SearchBase }
         try {
-            return @(Get-ADGroup @query)
+            $found = @(Get-ADGroup @query)
+            foreach ($g in $found) {
+                if (-not $g) { continue }
+                Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($g.DistinguishedName)" `
+                    -SamAccountName "$($g.SamAccountName)" -DisplayName "$($g.DisplayName)" -Name "$($g.Name)" -ObjectClass 'group'
+            }
+            return $found
         } catch {
             $FailedGroupDomain[$Domain] = $true
             $Warnings.Add("Group lookup failed in '$Domain' during $Phase`: $($_.Exception.Message)")
@@ -121,6 +127,10 @@ function Get-AdDiscoveryData {
         if ($Properties) { $query['Properties'] = $Properties }
         try {
             $group = Get-ADGroup @query
+            if ($group) {
+                Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($group.DistinguishedName)" `
+                    -SamAccountName "$($group.SamAccountName)" -DisplayName "$($group.DisplayName)" -Name "$($group.Name)" -ObjectClass 'group'
+            }
             if ($SecurityGroupsOnly -and $group -and "$($group.GroupCategory)" -and "$($group.GroupCategory)" -ne 'Security') {
                 return $null
             }
@@ -168,10 +178,20 @@ function Get-AdDiscoveryData {
         param(
             [object[]]$Groups,
             [Parameter(Mandatory)][hashtable]$Seen,
-            [Parameter(Mandatory)]$List
+            [Parameter(Mandatory)]$List,
+            [hashtable]$ObjectCache
         )
         $count = 0
         foreach ($group in @($Groups)) {
+            if ($group -and $null -ne $ObjectCache) {
+                # Keep the full search-returned object so hydration can reuse it
+                # instead of re-fetching the same group by identity.
+                $dn = "$($group.DistinguishedName)"
+                if (-not [string]::IsNullOrWhiteSpace($dn)) {
+                    $dnKey = $dn.ToLower()
+                    if (-not $ObjectCache.ContainsKey($dnKey)) { $ObjectCache[$dnKey] = $group }
+                }
+            }
             if (Add-CandidateGroup -Group $group -Seen $Seen -List $List) { $count++ }
         }
         return $count
@@ -212,6 +232,32 @@ function Get-AdDiscoveryData {
         }
         $Cache[$key] = $memberObject
         return $memberObject
+    }
+
+    function Add-CachedMemberObject {
+        # Pre-seed the member-object cache from an object an earlier AD query
+        # already returned (or one synthesized loss-free, as with FSP DNs built
+        # from a known SID), so report shaping never re-fetches it via
+        # Get-ADObject. First write wins; entries mirror the shape
+        # Resolve-AdMemberObject builds.
+        param(
+            [Parameter(Mandatory)][hashtable]$Cache,
+            [string]$DistinguishedName,
+            [string]$SamAccountName,
+            [string]$DisplayName,
+            [string]$Name,
+            [string]$ObjectClass
+        )
+        if ([string]::IsNullOrWhiteSpace($DistinguishedName)) { return }
+        $key = $DistinguishedName.ToLower()
+        if ($Cache.ContainsKey($key)) { return }
+        $Cache[$key] = [pscustomobject]@{
+            DistinguishedName = $DistinguishedName
+            SamAccountName    = "$SamAccountName"
+            DisplayName       = "$DisplayName"
+            Name              = "$Name"
+            ObjectClass       = "$ObjectClass"
+        }
     }
 
     function ConvertTo-EngineGroup {
@@ -294,6 +340,10 @@ function Get-AdDiscoveryData {
             }
             foreach ($u in $found) {
                 if (-not $u) { continue }
+                # Cache every returned user (even ones skipped below) so report
+                # shaping never re-fetches them via Get-ADObject.
+                Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($u.DistinguishedName)" `
+                    -SamAccountName "$($u.SamAccountName)" -DisplayName "$($u.displayName)" -Name "$($u.Name)" -ObjectClass 'user'
                 $csvUser = $csvUserBySam["$($u.SamAccountName)"]
                 if (-not $csvUser) { continue }   # directory returned a sam we did not ask for
                 $sid = "$($u.objectSid)"
@@ -344,6 +394,7 @@ function Get-AdDiscoveryData {
         Write-Host "  [$($ctx.Index)/$domainTotal] $($ctx.Domain) - finding candidate groups..."
         $candidateSeen = @{}
         $candidateDns = New-Object System.Collections.Generic.List[string]
+        $fetchedGroupByDn = @{}   # dn -> full search-returned object, reused at hydration
 
         Write-Host "    direct vendor memberships..."
         foreach ($u in $allVendorUsers) {
@@ -360,14 +411,21 @@ function Get-AdDiscoveryData {
             }
             if ($u.Sid) {
                 $fspDn = "CN=$($u.Sid),CN=ForeignSecurityPrincipals,$($ctx.DomainDn)"
+                # An FSP object carries nothing beyond its SID (name = SID, no
+                # sam/displayName), so this synthesized entry is loss-free and
+                # saves one Get-ADObject per vendor FSP membership. If the FSP
+                # does not exist in this domain, no member list references it
+                # and the entry is simply never consulted.
+                Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName $fspDn `
+                    -SamAccountName '' -DisplayName '' -Name "$($u.Sid)" -ObjectClass 'foreignSecurityPrincipal'
                 $memberClauses.Add((New-ExactFilter -Attribute 'member' -Value $fspDn))
             }
         }
         foreach ($batch in @(Get-Batches -Items $memberClauses.ToArray() -BatchSize $ldapBatchSize)) {
             $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
             $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'direct vendor membership' `
-                -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-            [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns)
+                -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+            [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
         }
 
         if ($keywords.Count -gt 0) {
@@ -381,8 +439,8 @@ function Get-AdDiscoveryData {
             foreach ($batch in @(Get-Batches -Items $keywordClauses.ToArray() -BatchSize $ldapBatchSize)) {
                 $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
                 $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'keyword search' `
-                    -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns)
+                    -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
 
             Write-Host "    OU keyword searches..."
@@ -394,9 +452,9 @@ function Get-AdDiscoveryData {
                 if ([string]::IsNullOrWhiteSpace($ou.DistinguishedName)) { continue }
                 $filter = New-GroupSearchFilter -Clause '(objectClass=group)'
                 $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'OU keyword group search' `
-                    -LDAPFilter $filter -Properties $groupMetadataProps -SearchBase $ou.DistinguishedName `
+                    -LDAPFilter $filter -Properties $groupProps -SearchBase $ou.DistinguishedName `
                     -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns)
+                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
         }
 
@@ -410,8 +468,8 @@ function Get-AdDiscoveryData {
             foreach ($batch in @(Get-Batches -Items $tokenClauses.ToArray() -BatchSize $ldapBatchSize)) {
                 $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
                 $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'description user-token search' `
-                    -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns)
+                    -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
         }
 
@@ -425,8 +483,8 @@ function Get-AdDiscoveryData {
             } else {
                 $filter = New-GroupSearchFilter -Clause (New-ExactFilter -Attribute 'name' -Value $identity)
                 $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'known group lookup' `
-                    -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns)
+                    -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
         }
 
@@ -444,13 +502,25 @@ function Get-AdDiscoveryData {
         for ($round = 0; $round -lt 25; $round++) {
             $changed = $false
 
-            # Hydration supplies authoritative names for candidates introduced as
-            # bare DNs (memberOf and DN-form known.csv entries), and is cached for
-            # final result shaping.
+            # Hydration supplies authoritative attributes for every candidate and
+            # is cached for final result shaping. Candidates that arrived as full
+            # search results are reused as-is; only candidates introduced as bare
+            # DNs (memberOf and DN-form known.csv entries) cost an identity fetch.
             foreach ($dn in @($candidateDns)) {
                 $dnKey = $dn.ToLower()
                 if ($hydratedByDn.ContainsKey($dnKey)) { continue }
-                $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
+                $group = $null
+                if ($fetchedGroupByDn.ContainsKey($dnKey)) {
+                    $fetched = $fetchedGroupByDn[$dnKey]
+                    # Reuse only when the search actually carried the heavy
+                    # attributes; a result without them still hydrates normally.
+                    if ($fetched.PSObject.Properties['member'] -and $fetched.PSObject.Properties['memberOf']) {
+                        $group = $fetched
+                    }
+                }
+                if (-not $group) {
+                    $group = Get-AdGroupByIdentity -Common $ctx.Common -Domain $ctx.Domain -Identity $dn -Properties $groupProps -Warnings $warnings
+                }
                 $hydratedByDn[$dnKey] = $group
             }
 
@@ -466,8 +536,8 @@ function Get-AdDiscoveryData {
                 foreach ($batch in @(Get-Batches -Items $parentClauses -BatchSize $ldapBatchSize)) {
                     $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
                     $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'nested parent group lookup' `
-                        -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns) -gt 0) { $changed = $true }
+                        -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn) -gt 0) { $changed = $true }
                 }
             }
 
@@ -523,8 +593,8 @@ function Get-AdDiscoveryData {
                 foreach ($batch in @(Get-Batches -Items $nameClauses.ToArray() -BatchSize $ldapBatchSize)) {
                     $filter = New-GroupSearchFilter -Clause (New-LdapOrFilter -Clauses $batch)
                     $groups = Invoke-AdGroupSearch -Common $ctx.Common -Domain $ctx.Domain -Phase 'description group-name search' `
-                        -LDAPFilter $filter -Properties $groupMetadataProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
-                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns) -gt 0) { $changed = $true }
+                        -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
+                    if ((Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn) -gt 0) { $changed = $true }
                 }
             }
 
