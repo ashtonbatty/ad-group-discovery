@@ -32,7 +32,7 @@ Nothing about the existing reports changes. This is purely additive.
   and split into two files. JSON is both easier and higher-fidelity.
 - **Load mechanism: JS sidecar, auto-loading.** A double-clicked `file://` HTML cannot
   `fetch()` a sibling file (Chrome blocks it, origin null), but a `<script src>` subresource
-  load is not blocked. So the engine emits `vendor-group-discovery-data.js` containing
+  load is not blocked. So the engine emits `discovery-data.js` containing
   `window.__DISCOVERY__ = {...}`, and the viewer references it with a `<script>` tag —
   zero-click, no server, cross-browser. A plain `.json` is emitted alongside for programmatic
   use and as the drag-drop secondary load path.
@@ -47,24 +47,24 @@ Three additive pieces:
 
 1. **`Write-JsonReport`** — new pure function in `src/Report/`. Takes `$Results` + `$Summary`,
    shapes them into a plain object, and writes two files to the output directory:
-   - `vendor-group-discovery-data.js` — `window.__DISCOVERY__ = { ... };`
-   - `vendor-group-discovery-data.json` — the same payload as bare JSON.
+   - `discovery-data.js` — `window.__DISCOVERY__ = { ... };`
+   - `discovery-data.json` — the same payload as bare JSON.
    It performs **no** `Protect-CsvCell` mangling (JSON is inherently injection-safe; escaping
    is the viewer's job at render time).
 
 2. **`viewer.html`** — new static asset at `src/Report/assets/viewer.html`, with Tabulator +
    all UI JS/CSS inlined. Identical every run, so it is a repo asset, not a generated string.
-   Copied to the output dir as `vendor-group-discovery-interactive.html`.
+   Copied to the output dir as `discovery-report.html`.
 
 3. **Wiring** — add `'Json'` to the `-Formats` ValidateSet in `Find-VendorAdGroup`. When
-   selected, call `Write-JsonReport` and copy `viewer.html` → `vendor-group-discovery-interactive.html`.
+   selected, call `Write-JsonReport` and copy `viewer.html` → `discovery-report.html`.
 
 ### Data flow
 
 ```
-Invoke-DiscoveryEngine → Write-JsonReport → vendor-group-discovery-data.js (+ .json)
-user double-clicks vendor-group-discovery-interactive.html
-  → <script src="vendor-group-discovery-data.js"> populates window.__DISCOVERY__
+Invoke-DiscoveryEngine → Write-JsonReport → discovery-data.js (+ .json)
+user double-clicks discovery-report.html
+  → <script src="discovery-data.js"> populates window.__DISCOVERY__
   → Tabulator renders
 ```
 
