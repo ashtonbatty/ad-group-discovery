@@ -551,6 +551,73 @@ Describe 'Get-AdDiscoveryData' {
             $Server -eq 'dc2' -and $LDAPFilter -like '*description=*Trusted Owners**'
         }
     }
+    It 'does not issue a description search for a name whose only signal is a mixed vendor membership' {
+        # A vendor account sitting in a built-in group must not turn that group's
+        # generic name into LDAP description searches: the engine would never
+        # trust the name, so fetching the mentions is pure waste.
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $daDn = 'CN=Domain Admins,CN=Users,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Domain Admins'; DistinguishedName=$daDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $daDn } -MockWith {
+            [pscustomobject]@{ Name='Domain Admins'; DistinguishedName=$daDn
+                description=''; info=''; managedBy=''
+                member=@($userDn, 'CN=Jane Roe,OU=Staff,DC=corp,DC=example,DC=com'); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=1
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.Groups.Name | Should -Contain 'Domain Admins'   # the group itself is still a candidate
+        Should -Invoke Get-ADGroup -Exactly -Times 0 -ParameterFilter {
+            $LDAPFilter -like '*description=*Domain Admins**'
+        }
+    }
+    It 'issues a description search for a member-only name when every member is a vendor user' {
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $opsDn = 'CN=Acme Support Staff,OU=Groups,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Support Staff'; DistinguishedName=$opsDn
+                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $opsDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Support Staff'; DistinguishedName=$opsDn
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $null = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*Acme Support Staff**'
+        }
+    }
     It 'does not issue a trusted-name description search for short (<4 char) names' {
         $itDn = 'CN=IT,OU=Groups,DC=corp,DC=example,DC=com'
         Mock -CommandName Get-ADUser -MockWith { @() }

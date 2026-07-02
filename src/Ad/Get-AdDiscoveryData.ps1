@@ -214,6 +214,23 @@ function Get-AdDiscoveryData {
         return $memberObject
     }
 
+    function ConvertTo-EngineGroup {
+        # Shape a hydrated raw AD group into the object Find-CandidateGroups
+        # expects, minus member hydration (scoring only needs the Member DN
+        # list; MemberDirectoryObjects are display-only and cost one
+        # Get-ADObject per member, so they are resolved only at final shaping).
+        param([Parameter(Mandatory)][object]$Group, [Parameter(Mandatory)][string]$Domain)
+        [pscustomobject]@{
+            Domain = $Domain; Name = $Group.Name; DistinguishedName = $Group.DistinguishedName
+            Description = $Group.description; Info = $Group.info; ManagedBy = $Group.managedBy
+            Member = @($Group.member); MemberOf = @($Group.memberof)
+            MemberDirectoryObjects = @()
+            GroupScope = "$($Group.GroupScope)"; GroupCategory = "$($Group.GroupCategory)"
+            Mail = $Group.mail; AdminCount = $Group.adminCount
+            WhenCreated = $Group.whenCreated; WhenChanged = $Group.whenChanged
+        }
+    }
+
     function Get-Batches {
         param([object[]]$Items, [int]$BatchSize)
         $batches = New-Object System.Collections.ArrayList
@@ -315,6 +332,14 @@ function Get-AdDiscoveryData {
     $descriptionUserTokens = @($allVendorUsers | ForEach-Object { $_.Tokens } |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 
+    # Inputs for the in-memory engine pass that gates trusted-name searches
+    # (built once; same construction as Invoke-DiscoveryEngine).
+    $knownKeys = @{}
+    foreach ($k in $InputData.KnownGroups)   { $knownKeys[(Get-GroupLookupKey -Domain $k.Domain -Identity $k.Identity)] = $true }
+    $excludeKeys = @{}
+    foreach ($e in $InputData.ExcludeGroups) { $excludeKeys[(Get-GroupLookupKey -Domain $e.Domain -Identity $e.Identity)] = $true }
+    $confidenceRank = Get-ConfidenceRank
+
     foreach ($ctx in $domainContexts) {
         Write-Host "  [$($ctx.Index)/$domainTotal] $($ctx.Domain) - finding candidate groups..."
         $candidateSeen = @{}
@@ -405,9 +430,13 @@ function Get-AdDiscoveryData {
             }
         }
 
-        # Candidate names become trusted only after the candidate has been found by
-        # an independent signal (or by a previously trusted name). Keep separate,
-        # per-domain ledgers for DNs and names so no related lookup is repeated.
+        # Candidate names feed description searches only when the engine itself
+        # would trust them: each round runs the real matching pipeline over the
+        # hydrated candidates and keeps names passing Test-TrustedNameSource
+        # (the same predicate Expand-VendorGroupClosure uses). Trust is
+        # recomputed every round as candidates arrive, so transitive chains
+        # still expand one LDAP hop per round. Keep separate, per-domain
+        # ledgers for DNs and names so no related lookup is repeated.
         Write-Host "    related group lookups..."
         $queriedChildren = @{}       # child DN -> parent-membership query issued
         $queriedGroupNames = @{}     # normalized group name -> description/info query issued
@@ -442,6 +471,28 @@ function Get-AdDiscoveryData {
                 }
             }
 
+            # Ask the engine which names it would trust. Pure in-memory work
+            # over at most a few hundred candidates -- negligible next to the
+            # LDAP fetches it prevents (each untrusted-name search costs the
+            # search itself plus per-group hydration and per-member resolution
+            # for every junk group it returns).
+            $trustedNameSet = @{}
+            $engineGroups = @(
+                foreach ($group in $hydratedByDn.Values) {
+                    if ($group) { ConvertTo-EngineGroup -Group $group -Domain $ctx.Domain }
+                }
+            )
+            if ($engineGroups.Count -gt 0) {
+                $engineResults = Find-CandidateGroups -Groups $engineGroups -Keywords $keywords `
+                    -VendorUsers $allVendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
+                $engineResults = Expand-VendorGroupClosure -Results $engineResults
+                foreach ($res in @($engineResults)) {
+                    if (Test-TrustedNameSource -Result $res -Rank $confidenceRank) {
+                        $trustedNameSet[("$($res.Name)".Trim().ToLower())] = $true
+                    }
+                }
+            }
+
             $newTrustedNames = New-Object System.Collections.Generic.List[string]
             foreach ($group in @($hydratedByDn.Values)) {
                 if (-not $group) { continue }
@@ -449,6 +500,10 @@ function Get-AdDiscoveryData {
                 if ([string]::IsNullOrWhiteSpace($name)) { continue }
                 $nameKey = $name.ToLower()
                 if ($queriedGroupNames.ContainsKey($nameKey)) { continue }
+                # An untrusted name stays unmarked: a later round can still make
+                # it trusted (e.g. a transitive description mention) and it must
+                # remain searchable then.
+                if (-not $trustedNameSet.ContainsKey($nameKey)) { continue }
                 # Mark before issuing the LDAP call. A failed lookup is not retried
                 # later in this domain and cannot multiply queries across rounds.
                 $queriedGroupNames[$nameKey] = $true
