@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vendor AD Group Discovery Codebase Guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172026;
+      --muted: #5d6972;
+      --paper: #fbfaf7;
+      --panel: #ffffff;
+      --line: #d9ddd8;
+      --navy: #20334a;
+      --teal: #097b7a;
+      --gold: #c98318;
+      --red: #b84a3f;
+      --green: #2d7a4f;
+      --code: #26313b;
+      --shadow: 0 18px 55px rgba(32, 51, 74, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(32, 51, 74, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(32, 51, 74, 0.04) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    a {
+      color: var(--teal);
+      text-decoration-thickness: 0.08em;
+      text-underline-offset: 0.18em;
+    }
+
+    .hero {
+      min-height: 84vh;
+      display: grid;
+      align-items: end;
+      padding: 56px 24px 38px;
+      color: #f8fbfb;
+      background:
+        linear-gradient(115deg, rgba(18, 27, 36, 0.94), rgba(32, 51, 74, 0.82) 58%, rgba(9, 123, 122, 0.72)),
+        repeating-linear-gradient(135deg, rgba(255,255,255,0.10) 0 1px, transparent 1px 18px),
+        radial-gradient(circle at 15% 20%, rgba(201, 131, 24, 0.36), transparent 30%),
+        #20334a;
+    }
+
+    .hero-inner,
+    main,
+    .toc-inner {
+      width: min(1120px, calc(100vw - 48px));
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      color: #f5c979;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.12;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 0;
+      font-size: clamp(2.55rem, 7vw, 5.8rem);
+      font-weight: 750;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+      margin: 24px 0 0;
+      font-size: clamp(1.06rem, 2vw, 1.36rem);
+      color: rgba(248, 251, 251, 0.9);
+    }
+
+    .hero-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      max-width: 900px;
+      margin-top: 42px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .hero-strip div {
+      min-height: 92px;
+      padding: 18px;
+      background: rgba(12, 20, 28, 0.35);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero-strip strong {
+      display: block;
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+
+    .hero-strip span {
+      display: block;
+      margin-top: 8px;
+      color: rgba(248, 251, 251, 0.78);
+      font-size: 0.9rem;
+      line-height: 1.35;
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line);
+      background: rgba(251, 250, 247, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .toc-inner {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 12px 0;
+    }
+
+    .toc a {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--navy);
+      background: #fff;
+      font-size: 0.9rem;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    main {
+      padding: 54px 0 80px;
+    }
+
+    section {
+      margin: 0 0 72px;
+    }
+
+    .section-kicker {
+      margin: 0 0 8px;
+      color: var(--teal);
+      font-size: 0.8rem;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      color: var(--navy);
+      font-size: clamp(1.9rem, 4vw, 3.2rem);
+    }
+
+    h3 {
+      margin: 30px 0 10px;
+      color: #243342;
+      font-size: clamp(1.2rem, 2vw, 1.55rem);
+    }
+
+    p {
+      max-width: 820px;
+      margin: 0 0 18px;
+      font-size: 1.02rem;
+    }
+
+    .lead {
+      max-width: 900px;
+      color: #35414b;
+      font-size: 1.2rem;
+    }
+
+    code,
+    .path {
+      color: var(--code);
+      background: #eef1ef;
+      border: 1px solid #dfe4e1;
+      border-radius: 6px;
+      padding: 0.1em 0.36em;
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 20px 0;
+      padding: 18px;
+      color: #f7fbfb;
+      background: #202a34;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    pre code {
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      font-size: 0.95rem;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 28px 0 32px;
+    }
+
+    .flow-step {
+      min-height: 168px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--teal);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 12px 30px rgba(32, 51, 74, 0.08);
+      position: relative;
+    }
+
+    .flow-step::after {
+      content: "";
+      position: absolute;
+      top: 48%;
+      right: -12px;
+      width: 12px;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .flow-step strong {
+      display: block;
+      color: var(--navy);
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+
+    .flow-step span {
+      display: block;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+      gap: 34px;
+      align-items: start;
+    }
+
+    .callout {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-left: 6px solid var(--gold);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(32, 51, 74, 0.08);
+    }
+
+    .callout p:last-child {
+      margin-bottom: 0;
+    }
+
+    .file-list,
+    .signals,
+    .reports {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+
+    .file,
+    .signal,
+    .report {
+      min-height: 128px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .file strong,
+    .signal strong,
+    .report strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--navy);
+      font-size: 1.02rem;
+    }
+
+    .file span,
+    .signal span,
+    .report span {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 12px;
+      margin: 22px 0;
+    }
+
+    .score {
+      padding: 18px;
+      border-radius: 8px;
+      color: #fff;
+      min-height: 112px;
+    }
+
+    .score strong {
+      display: block;
+      font-size: 1.12rem;
+    }
+
+    .score span {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.92rem;
+      color: rgba(255,255,255,0.88);
+    }
+
+    .confirmed { background: #5b4b8a; }
+    .high { background: var(--red); }
+    .medium { background: var(--gold); }
+    .low { background: #66717b; }
+
+    .folder-map {
+      margin: 28px 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .folder-row {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 20px;
+      padding: 18px 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .folder-row:first-child {
+      border-top: 0;
+    }
+
+    .folder-row strong {
+      color: var(--navy);
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+      font-size: 0.96rem;
+    }
+
+    .folder-row span {
+      color: var(--muted);
+    }
+
+    .reading-path {
+      counter-reset: path;
+      display: grid;
+      gap: 14px;
+      margin: 24px 0;
+    }
+
+    .reading-item {
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .reading-item::before {
+      counter-increment: path;
+      content: counter(path);
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--teal);
+      font-weight: 750;
+    }
+
+    .reading-item strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--navy);
+    }
+
+    .reading-item span {
+      color: var(--muted);
+    }
+
+    .note {
+      padding: 16px 18px;
+      border-left: 5px solid var(--green);
+      background: #eef6f1;
+      border-radius: 8px;
+      color: #234232;
+    }
+
+    footer {
+      padding: 36px 24px;
+      color: rgba(255,255,255,0.82);
+      background: #172026;
+    }
+
+    footer div {
+      width: min(1120px, calc(100vw - 48px));
+      margin: 0 auto;
+    }
+
+    @media (max-width: 900px) {
+      .hero-strip,
+      .flow,
+      .file-list,
+      .signals,
+      .reports,
+      .score-grid,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step::after {
+        display: none;
+      }
+
+      .folder-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .hero {
+        min-height: 88vh;
+        padding: 38px 18px 28px;
+      }
+
+      .hero-inner,
+      main,
+      .toc-inner,
+      footer div {
+        width: min(100% - 32px, 1120px);
+      }
+
+      .reading-item {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">Codebase guide for PowerShell readers</p>
+      <h1>Vendor AD Group Discovery, explained from input files to reports.</h1>
+      <p class="hero-copy">
+        This project finds Active Directory groups that appear to belong to, or be used by, a vendor.
+        It reads small CSV files, queries one or more domains, scores the evidence it finds, and writes
+        reports that show each group, its members, and the reasons it was included.
+      </p>
+      <div class="hero-strip" aria-label="Project facts">
+        <div><strong>1</strong><span>public command: <code>Find-VendorAdGroup</code></span></div>
+        <div><strong>5</strong><span>CSV input files describe users, domains, keywords, known groups, and exclusions</span></div>
+        <div><strong>4</strong><span>main source areas: Input, AD access, Engine, and Report</span></div>
+        <div><strong>3</strong><span>primary report surfaces: CSV, HTML, and console</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Page sections">
+    <div class="toc-inner">
+      <a href="#purpose">Purpose</a>
+      <a href="#run">How a Run Works</a>
+      <a href="#structure">Structure</a>
+      <a href="#principles">Design Principles</a>
+      <a href="#inputs">Inputs</a>
+      <a href="#ad">AD Queries</a>
+      <a href="#matching">Matching</a>
+      <a href="#reports">Reports</a>
+      <a href="#tests">Tests</a>
+      <a href="#read">Reading Path</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="purpose">
+      <p class="section-kicker">The short version</p>
+      <h2>What this project does</h2>
+      <p class="lead">
+        Vendor access in Active Directory is rarely marked by one perfect field. A vendor group might
+        contain vendor users, be managed by one of those users, have a vendor name in its group name,
+        live in a vendor-named OU, or mention a vendor account in its description. This codebase combines
+        those clues and turns them into a confidence-ranked list.
+      </p>
+      <p>
+        The project is packaged as a PowerShell module named <code>VendorAdGroupDiscovery</code>.
+        The exported function is <code>Find-VendorAdGroup</code>, and the root script
+        <code>Find-VendorAdGroup.ps1</code> is a convenience wrapper that imports the module and forwards
+        the parameters. In normal use, you run the wrapper from a machine that can load the RSAT
+        <code>ActiveDirectory</code> module and read the target domains.
+      </p>
+      <pre><code>./Find-VendorAdGroup.ps1 `
+  -UsersCsv samples/users.csv `
+  -DomainsCsv samples/domains.csv `
+  -KeywordsCsv samples/keywords.csv `
+  -KnownGroupsCsv samples/known.csv `
+  -ExcludeGroupsCsv samples/exclude.csv `
+  -OutputDirectory ./out</code></pre>
+      <p>
+        The command returns an object with <code>Results</code> and <code>Summary</code>, but its main purpose
+        is to write files into the output directory. By default it writes CSV reports, an HTML report, and
+        a console summary. You can narrow the output with <code>-Formats</code>, restrict candidates to
+        security groups with <code>-SecurityGroupsOnly</code>, and raise the report threshold with
+        <code>-MinimumConfidence</code>.
+      </p>
+    </section>
+
+    <section id="run">
+      <p class="section-kicker">Execution flow</p>
+      <h2>How one discovery run moves through the code</h2>
+      <div class="flow" aria-label="Execution flow">
+        <div class="flow-step">
+          <strong>1. Read CSV input</strong>
+          <span><code>Read-DiscoveryInput</code> validates required columns and returns one object containing users, domains, keywords, known groups, and excluded groups.</span>
+        </div>
+        <div class="flow-step">
+          <strong>2. Query AD</strong>
+          <span><code>Get-AdDiscoveryData</code> resolves vendor users, searches for likely groups, hydrates candidate groups, and builds a DN index.</span>
+        </div>
+        <div class="flow-step">
+          <strong>3. Score evidence</strong>
+          <span><code>Invoke-DiscoveryEngine</code> calls the matching functions, expands nested relationships, and filters by confidence.</span>
+        </div>
+        <div class="flow-step">
+          <strong>4. Shape display data</strong>
+          <span>Still inside the engine, <code>Resolve-ResultDisplay</code> turns DNs into readable names and marks vendor users in member lists, then results are sorted.</span>
+        </div>
+        <div class="flow-step">
+          <strong>5. Write reports</strong>
+          <span>The report layer writes group CSV, member CSV, user reports, HTML, and a console summary.</span>
+        </div>
+      </div>
+      <p>
+        The top-level function in <code>src/Find-VendorAdGroup.ps1</code> is intentionally easy to read.
+        It does not contain the matching rules itself. Instead, it wires together private functions:
+        read input, create the output folder, query Active Directory, run the engine, build a summary,
+        and write the requested report formats. That makes it a good starting point when you want to
+        understand the project without getting lost in implementation detail.
+      </p>
+    </section>
+
+    <section id="structure">
+      <p class="section-kicker">Project map</p>
+      <h2>How the repository is organized</h2>
+      <p>
+        The module loader, <code>VendorAdGroupDiscovery.psm1</code>, dot-sources every <code>.ps1</code>
+        file under <code>src/</code> and exports only <code>Find-VendorAdGroup</code>. Dot-sourcing means
+        each function is loaded into the module scope, so private helpers can call each other even though
+        only one function is public.
+      </p>
+      <div class="folder-map">
+        <div class="folder-row">
+          <strong>Find-VendorAdGroup.ps1</strong>
+          <span>Runnable wrapper script. It imports the module manifest and forwards bound parameters to the public function.</span>
+        </div>
+        <div class="folder-row">
+          <strong>VendorAdGroupDiscovery.psd1</strong>
+          <span>Module manifest. It declares the root module, PowerShell 5.1 requirement, version, author, description, and exported function.</span>
+        </div>
+        <div class="folder-row">
+          <strong>VendorAdGroupDiscovery.psm1</strong>
+          <span>Module loader. It dot-sources all source files and exposes <code>Find-VendorAdGroup</code> as the public API.</span>
+        </div>
+        <div class="folder-row">
+          <strong>src/Input</strong>
+          <span>Input validation and CSV loading. This layer knows what columns are required but does not query AD or score anything.</span>
+        </div>
+        <div class="folder-row">
+          <strong>src/Ad</strong>
+          <span>Active Directory access. This layer builds LDAP filters, batches searches, resolves users, gathers candidate groups, and builds lookup indexes.</span>
+        </div>
+        <div class="folder-row">
+          <strong>src/Engine</strong>
+          <span>Matching and scoring. This layer decides whether a hydrated group looks vendor-related and how confident the project should be.</span>
+        </div>
+        <div class="folder-row">
+          <strong>src/Report</strong>
+          <span>Output formatting. This layer turns selected results into CSV rows, HTML tables, user reports, and console summaries.</span>
+        </div>
+        <div class="folder-row">
+          <strong>samples</strong>
+          <span>Example input files showing the expected CSV headers and realistic placeholder rows.</span>
+        </div>
+        <div class="folder-row">
+          <strong>tests</strong>
+          <span>Pester tests for input parsing, matching helpers, result shaping, reports, AD fixture behavior, and the public command.</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="principles">
+      <p class="section-kicker">Why the layers exist</p>
+      <h2>Four conventions hold the design together</h2>
+      <p>
+        The folder map shows <em>what</em> the layers are. These four rules explain <em>why</em> they are split
+        that way. Each one exists to solve a concrete problem, and keeping them in mind makes the rest of the
+        codebase feel intentional rather than arbitrary.
+      </p>
+      <div class="file-list">
+        <div class="file">
+          <strong>A thin Active Directory boundary</strong>
+          <span>Only <code>Get-AdDiscoveryData</code> is allowed to call AD cmdlets. Everything it learns is packed
+          into one plain data object. That single choke point is what lets the whole engine run on Linux
+          <code>pwsh</code> with no directory at all.</span>
+        </div>
+        <div class="file">
+          <strong>A pure engine and report layer</strong>
+          <span>Because the AD layer hands downstream code plain objects, every matching and report function is a
+          pure transformation of data in, data out. Purity is precisely what makes the fixture and mock testing
+          story below possible.</span>
+        </div>
+        <div class="file">
+          <strong>Output is treated as untrusted</strong>
+          <span>Group names, descriptions, and <code>info</code> can be edited by people the script never
+          controls. <code>Protect-CsvCell</code> defuses spreadsheet formula injection and
+          <code>Write-HtmlReport</code> HTML-encodes every value, so a hostile group name cannot become a payload.</span>
+        </div>
+        <div class="file">
+          <strong>Shared rules live in one function</strong>
+          <span>Where fetching and scoring must agree — for example which groups may seed trusted-name searches —
+          the decision lives in a single helper such as <code>Test-TrustedNameSource</code> that both sides call,
+          rather than being duplicated and drifting apart.</span>
+        </div>
+      </div>
+      <aside class="callout">
+        <p><strong>One idiom worth knowing before you read the engine</strong></p>
+        <p>
+          Several engine functions return their result array with a leading comma, as in
+          <code>,$results.ToArray()</code>. This stops PowerShell from unrolling a single-element or empty array
+          on the way out. Call these functions with a plain assignment; wrapping the call in an extra
+          <code>@( )</code> nests the array inside another array and is a common source of confusion.
+        </p>
+      </aside>
+    </section>
+
+    <section id="inputs">
+      <p class="section-kicker">Configuration</p>
+      <h2>The five CSV files are the project control panel</h2>
+      <p>
+        The code does not hard-code a vendor name or domain list. Instead, each run is configured by CSV.
+        <code>Read-DiscoveryInput</code> checks that each file exists and that required columns are present.
+        It also handles the empty-file case carefully by reading the header line directly, so a file with
+        headers but no rows can still pass column validation.
+      </p>
+      <div class="file-list">
+        <div class="file">
+          <strong><code>users.csv</code></strong>
+          <span>Requires <code>SamAccountName</code>. Optional <code>UUserId</code> and <code>DisplayName</code> add more context. AD lookups later add mail, SID, DN, and account status fields.</span>
+        </div>
+        <div class="file">
+          <strong><code>domains.csv</code></strong>
+          <span>Requires <code>Domain</code>. Optional <code>Server</code> lets you choose a specific domain controller; optional <code>Name</code> is a friendly label.</span>
+        </div>
+        <div class="file">
+          <strong><code>keywords.csv</code></strong>
+          <span>Contains vendor words or phrases. These are used against group names, descriptions, info fields, and OU names.</span>
+        </div>
+        <div class="file">
+          <strong><code>known.csv</code></strong>
+          <span>Requires <code>Domain</code> and <code>Identity</code>. Known groups are treated as confirmed evidence and can seed related searches.</span>
+        </div>
+        <div class="file">
+          <strong><code>exclude.csv</code></strong>
+          <span>Requires <code>Domain</code> and <code>Identity</code>. Matching groups are skipped even if they otherwise look relevant.</span>
+        </div>
+      </div>
+      <p>
+        <code>Identity</code> in <code>known.csv</code> and <code>exclude.csv</code> may be a group name or a
+        distinguished name. Internally, the project normalizes these through <code>Get-GroupLookupKey</code>,
+        so comparisons are consistent by domain.
+      </p>
+    </section>
+
+    <section id="ad">
+      <p class="section-kicker">Directory access</p>
+      <h2>The AD layer tries to avoid expensive, unfocused searches</h2>
+      <div class="split">
+        <div>
+          <p>
+            <code>Get-AdDiscoveryData</code> is the largest function because it owns the costly part of the
+            job: talking to Active Directory. It first resolves the vendor users from <code>users.csv</code>
+            in each domain, batching <code>sAMAccountName</code> LDAP filters so the query strings stay at
+            a reasonable size. It skips suspicious account names containing characters that would make
+            filter construction risky.
+          </p>
+          <p>
+            Once the vendor users are known, the function searches for candidate groups in several ways:
+            direct memberships from each vendor user's <code>memberOf</code>, groups whose <code>member</code>
+            contains a vendor user or foreign security principal SID, keyword hits in group metadata,
+            groups under keyword-matching OUs, description hits for vendor account tokens, explicitly known
+            groups, nested parent groups, and related groups mentioned by trusted group names.
+          </p>
+          <p>
+            The important idea is that the AD layer gathers a focused candidate set. It does not simply
+            download every group in every domain and hope the later engine can sort it out. It also caches
+            users, groups, and member objects so report shaping does not repeatedly fetch the same DN.
+          </p>
+        </div>
+        <aside class="callout">
+          <p><strong>Why the trusted-name loop exists</strong></p>
+          <p>
+            Some groups are connected indirectly. For example, a confirmed vendor group might be named
+            <code>Acme Admins</code>, and another group might mention that name in its description. The code
+            only lets sufficiently trusted groups seed those description-name searches. That rule is shared
+            by <code>Test-TrustedNameSource</code>, <code>Get-AdDiscoveryData</code>, and
+            <code>Expand-VendorGroupClosure</code>, so fetching and scoring agree with each other.
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="matching">
+      <p class="section-kicker">Matching engine</p>
+      <h2>Evidence becomes reasons, reasons become confidence</h2>
+      <p>
+        The engine works on hydrated group objects, not raw AD cmdlet output. <code>Find-CandidateGroups</code>
+        loops through each candidate group, skips excluded groups, checks whether the group is known, and
+        collects match reasons from small helper functions. Each reason has a <code>Pattern</code> such as
+        <code>NameKeyword</code>, <code>Owner</code>, or <code>MemberVendorUser</code>, plus a value explaining
+        what matched.
+      </p>
+      <div class="signals">
+        <div class="signal">
+          <strong>Name and OU signals</strong>
+          <span><code>Get-NameMatchReason</code> and <code>Get-ContainerMatchReason</code> look for configured keywords in the group name and OU components of the DN.</span>
+        </div>
+        <div class="signal">
+          <strong>Description signals</strong>
+          <span><code>Get-DescriptionMatchReasons</code> checks <code>description</code> and <code>info</code> for keywords and vendor user tokens such as SAM, UUserId, or mail.</span>
+        </div>
+        <div class="signal">
+          <strong>Owner signals</strong>
+          <span><code>Get-OwnerMatchReason</code> compares <code>managedBy</code> against a vendor-user index keyed by DN and SID.</span>
+        </div>
+        <div class="signal">
+          <strong>Member signals</strong>
+          <span><code>Get-MemberMatchReasons</code> marks direct vendor users in a group's member list. These are weaker because shared groups often contain vendor users too.</span>
+        </div>
+      </div>
+      <p>
+        <code>Get-MatchConfidence</code> is the scoring table. Known groups are always
+        <code>Confirmed</code>. Otherwise, strong reasons are worth 3 points, medium reasons are worth
+        2 points, and each direct vendor-user member is worth 1 point up to a maximum of 3. That cap is
+        intentional: a group with many vendor users may still be a shared group, so membership alone should
+        not become unbounded proof.
+      </p>
+      <div class="score-grid" aria-label="Confidence scoring">
+        <div class="score confirmed"><strong>Confirmed</strong><span>Listed in <code>known.csv</code>.</span></div>
+        <div class="score high"><strong>High</strong><span>Score 3 or higher, such as a keyword in the name, OU, owner, or several members.</span></div>
+        <div class="score medium"><strong>Medium</strong><span>Score 2, such as description evidence or a nested vendor group.</span></div>
+        <div class="score low"><strong>Low</strong><span>Score 1, usually a single direct vendor-user member.</span></div>
+      </div>
+      <p>
+        After initial scoring, <code>Expand-VendorGroupClosure</code> runs up to 25 rounds. It promotes
+        relationships that can only be seen after one group is already trusted: parent groups that contain
+        confirmed or medium-confidence vendor groups receive a <code>NestedVendorGroup</code> reason, and
+        descriptions that mention trusted group names receive a <code>DescriptionGroup</code> reason. Each
+        added reason recalculates the score and confidence.
+      </p>
+    </section>
+
+    <section id="reports">
+      <p class="section-kicker">Output</p>
+      <h2>The report layer is separate from discovery logic</h2>
+      <p>
+        Once the engine selects and sorts results, the report functions focus on presentation. They do not
+        decide what is a vendor group. That separation keeps the matching behavior testable without needing
+        to inspect generated HTML or CSV.
+      </p>
+      <div class="reports">
+        <div class="report">
+          <strong><code>vendor-group-discovery.csv</code></strong>
+          <span>One row per selected group. Includes domain, name, confidence, score, source, owner, member counts, parent groups, AD metadata, DN, and match reasons.</span>
+        </div>
+        <div class="report">
+          <strong><code>vendor-group-discovery-members.csv</code></strong>
+          <span>One row per direct member of each reported group. Members are classified as known vendor users, nested groups, or other objects.</span>
+        </div>
+        <div class="report">
+          <strong><code>vendor-user-memberships.csv</code></strong>
+          <span>A user-centered report showing where resolved vendor users are members.</span>
+        </div>
+        <div class="report">
+          <strong><code>vendor-user-accounts.csv</code></strong>
+          <span>An account inventory for resolved vendor users, including status and password-related AD fields.</span>
+        </div>
+        <div class="report">
+          <strong><code>vendor-group-discovery.html</code></strong>
+          <span>A browsable report grouped by domain, with confidence classes and reason tags. HTML output escapes directory metadata.</span>
+        </div>
+        <div class="report">
+          <strong>Console summary</strong>
+          <span>A quick terminal overview of counts by domain, confidence band, reason, and failed domains.</span>
+        </div>
+      </div>
+      <p>
+        The report code includes two practical safety measures. <code>Protect-CsvCell</code> hardens CSV
+        values against formula injection, and <code>Write-HtmlReport</code> HTML-encodes values because AD
+        metadata such as names and descriptions can be influenced by people outside the script.
+      </p>
+    </section>
+
+    <section id="tests">
+      <p class="section-kicker">Quality checks</p>
+      <h2>The tests describe the intended behavior</h2>
+      <p>
+        The <code>tests/</code> folder is broad and practical. There are focused tests for string helpers,
+        LDAP filter construction, input reading, match confidence, name/container/owner/member matching,
+        result shaping, CSV and HTML output, and the top-level command. Each test file is named after the
+        function it exercises, so the test for a function is easy to find.
+      </p>
+      <pre><code>pwsh -NoProfile -Command "Invoke-Pester -Path ./tests -Output Detailed"</code></pre>
+      <p>
+        There is no live directory here, so two complementary mechanisms make the code testable on Linux.
+        They exist only because the AD boundary is thin and everything downstream is pure.
+      </p>
+      <div class="file-list">
+        <div class="file">
+          <strong>Stubs plus mocking, for units</strong>
+          <span><code>tests/_TestHelpers.ps1</code> dot-sources all of <code>src/</code> and defines no-op
+          <code>Get-ADGroup</code> / <code>Get-ADUser</code> stubs only if they are absent. Unit tests then use
+          Pester <code>Mock</code> to feed <code>Get-AdDiscoveryData</code> synthetic directory objects.</span>
+        </div>
+        <div class="file">
+          <strong>A simulated forest, for the whole pipeline</strong>
+          <span><code>tests/fixtures/</code> is a self-consistent four-domain forest — a <code>directory.json</code>
+          plus input CSVs. <code>Import-DiscoveryFixture.ps1</code> shapes it exactly like
+          <code>Get-AdDiscoveryData</code> output, so the full engine runs end to end with no AD and no mocking.</span>
+        </div>
+      </div>
+      <p>
+        The fixture doubles as the behavioral specification. <code>tests/fixtures/README.md</code> documents an
+        exact expected result for every signal, and <code>Fixture.Tests.ps1</code> asserts the engine against
+        that oracle. If you change a scoring rule, add a report column, or adjust how candidates are fetched,
+        read the matching <code>*.Tests.ps1</code> and the fixture README first — together they usually explain
+        the edge case more clearly than a comment in the code would.
+      </p>
+    </section>
+
+    <section id="read">
+      <p class="section-kicker">Suggested route</p>
+      <h2>A good way to read the codebase</h2>
+      <p>
+        If you are comfortable with basic PowerShell but not used to larger projects, do not start with
+        the longest file. Read in this order so each layer has a purpose before you see the details.
+      </p>
+      <div class="reading-path">
+        <div class="reading-item">
+          <div>
+            <strong><code>README.md</code> and <code>Find-VendorAdGroup.ps1</code></strong>
+            <span>Understand the command-line shape and the parameters users actually pass.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>VendorAdGroupDiscovery.psm1</code> and <code>src/Find-VendorAdGroup.ps1</code></strong>
+            <span>See how the module is loaded and how the top-level function wires the work together.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>src/Input/Read-DiscoveryInput.ps1</code></strong>
+            <span>Learn the shape of the input object that every later layer receives.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>src/Engine/Invoke-DiscoveryEngine.ps1</code></strong>
+            <span>Follow the clean in-memory pipeline: find candidates, expand closure, filter, display-shape, sort.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>src/Engine/Get-MatchConfidence.ps1</code> and match helpers</strong>
+            <span>Understand exactly what each kind of evidence is worth and how reasons are represented.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>src/Ad/Get-AdDiscoveryData.ps1</code></strong>
+            <span>Read this last. It is long because it balances correctness, performance, batching, caching, and AD query limits.</span>
+          </div>
+        </div>
+        <div class="reading-item">
+          <div>
+            <strong><code>src/Report</code> and related tests</strong>
+            <span>Finish with the output layer, where selected results are turned into useful files for review.</span>
+          </div>
+        </div>
+      </div>
+      <p class="note">
+        Mental model: the AD layer gathers a careful shortlist, the engine explains why each group belongs
+        on that shortlist, and the report layer makes the explanation usable by humans.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      Standalone guide generated for this repository. It describes the current module structure, execution
+      flow, matching rules, and report outputs without requiring external assets or network access.
+    </div>
+  </footer>
+</body>
+</html>
