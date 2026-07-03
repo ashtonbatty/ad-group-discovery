@@ -34,10 +34,14 @@ function Read-DiscoveryInput {
     $known    = Read-Csv $KnownGroupsCsv  @('Domain','Identity')
     $exclude  = Read-Csv $ExcludeGroupsCsv @('Domain','Identity')
 
+    $activeKeywords = @($keywords | ForEach-Object { $_.Keyword } | Where-Object { $_ -and $_.Trim() })
+    Write-DiscoveryLog ("Input parsed: {0} user(s), {1} domain(s), {2} keyword(s), {3} known group(s), {4} exclude entry(ies)" -f `
+        $users.Count, $domains.Count, $activeKeywords.Count, $known.Count, $exclude.Count)
+
     [pscustomobject]@{
         Users         = $users
         Domains       = $domains
-        Keywords      = @($keywords | ForEach-Object { $_.Keyword } | Where-Object { $_ -and $_.Trim() })
+        Keywords      = $activeKeywords
         KnownGroups   = $known
         ExcludeGroups = $exclude
     }

@@ -81,6 +81,19 @@ Describe 'Find-VendorAdGroup' {
         $acc = @(Import-Csv (Join-Path $out 'vendor-user-accounts.csv'))
         ($acc | Where-Object UserSamAccountName -eq 'jsmith').Enabled | Should -Be 'True'
     }
+    It 'writes a detailed discovery.log alongside the reports' {
+        $out = Join-Path $tmp 'log-reports'
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
+            -OutputDirectory $out -Formats @('Csv')
+        $log = Join-Path $out 'discovery.log'
+        Test-Path $log | Should -BeTrue
+        $content = Get-Content $log -Raw
+        $content | Should -Match 'Run parameters:'
+        $content | Should -Match 'Input parsed:'
+        $content | Should -Match 'Engine: pipeline complete'
+        $content | Should -Match 'Run complete'
+    }
     It 'writes the interactive JSON sidecar and viewer when Json format selected' {
         $out = Join-Path $tmp 'json-reports'
         Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `

@@ -97,6 +97,11 @@ Members flagged with a leading `*` in HTML/console reports are vendor users.
   `discovery-report.html` to open it — no server needed. Its CSV export is hardened
   against formula injection like the pipeline CSVs.
 
+- `discovery.log` — detailed, timestamped run log: per-phase candidate counts and
+  timings, every batched LDAP search with result count and duration, related-group
+  expansion rounds, per-domain and total LDAP query tallies, warnings. Also mirrored
+  to the verbose stream (`-Verbose`).
+
 Report cells are hardened against CSV formula injection and HTML is escaped against
 XSS, since group metadata can contain attacker-influenceable values.
 

@@ -140,7 +140,12 @@ function Get-AdDiscoveryData {
         if ($Properties) { $query['Properties'] = $Properties }
         if (-not [string]::IsNullOrWhiteSpace($SearchBase)) { $query['SearchBase'] = $SearchBase }
         try {
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $found = @(Get-ADGroup @query)
+            $queryStats['GroupSearches']++
+            Write-DiscoveryLog -Level DEBUG -Message ("[{0}] group search ({1}): {2} result(s) in {3} ms, filter {4} chars{5}" -f `
+                $Domain, $Phase, $found.Count, $sw.ElapsedMilliseconds, $LDAPFilter.Length, `
+                $(if ($SearchBase) { ", base $SearchBase" } else { '' }))
             foreach ($g in $found) {
                 if (-not $g) { continue }
                 Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($g.DistinguishedName)" `
@@ -150,6 +155,7 @@ function Get-AdDiscoveryData {
         } catch {
             $FailedGroupDomain[$Domain] = $true
             $Warnings.Add("Group lookup failed in '$Domain' during $Phase`: $($_.Exception.Message)")
+            Write-DiscoveryLog -Level WARN -Message ("[{0}] group search ({1}) failed: {2}" -f $Domain, $Phase, $_.Exception.Message)
             return @()
         }
     }
@@ -167,10 +173,15 @@ function Get-AdDiscoveryData {
         $query['LDAPFilter'] = $LDAPFilter
         $query['Properties'] = @('distinguishedName')
         try {
-            return @(Get-ADOrganizationalUnit @query)
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $found = @(Get-ADOrganizationalUnit @query)
+            $queryStats['OuSearches']++
+            Write-DiscoveryLog -Level DEBUG -Message ("[{0}] OU search: {1} result(s) in {2} ms" -f $Domain, $found.Count, $sw.ElapsedMilliseconds)
+            return $found
         } catch {
             $FailedGroupDomain[$Domain] = $true
             $Warnings.Add("OU lookup failed in '$Domain': $($_.Exception.Message)")
+            Write-DiscoveryLog -Level WARN -Message ("[{0}] OU search failed: {1}" -f $Domain, $_.Exception.Message)
             return @()
         }
     }
@@ -188,6 +199,7 @@ function Get-AdDiscoveryData {
         if ($Properties) { $query['Properties'] = $Properties }
         try {
             $group = Get-ADGroup @query
+            $queryStats['IdentityFetches']++
             if ($group) {
                 Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($group.DistinguishedName)" `
                     -SamAccountName "$($group.SamAccountName)" -DisplayName "$($group.DisplayName)" -Name "$($group.Name)" -ObjectClass 'group'
@@ -198,6 +210,7 @@ function Get-AdDiscoveryData {
             return $group
         } catch {
             $Warnings.Add("Group lookup failed in '$Domain' for '$Identity': $($_.Exception.Message)")
+            Write-DiscoveryLog -Level WARN -Message ("[{0}] identity fetch failed for '{1}': {2}" -f $Domain, $Identity, $_.Exception.Message)
             return $null
         }
     }
@@ -267,11 +280,12 @@ function Get-AdDiscoveryData {
         if ([string]::IsNullOrWhiteSpace($DistinguishedName)) { return $null }
 
         $key = $DistinguishedName.ToLower()
-        if ($Cache.ContainsKey($key)) { return $Cache[$key] }
+        if ($Cache.ContainsKey($key)) { $queryStats['MemberCacheHits']++; return $Cache[$key] }
 
         $query = @{} + $Common
         $query['Identity'] = $DistinguishedName
         $query['Properties'] = $memberObjectProps
+        $queryStats['MemberFetches']++
         try {
             $adObject = Get-ADObject @query
         } catch {
@@ -353,6 +367,14 @@ function Get-AdDiscoveryData {
     $vendorUsers   = New-Object System.Collections.Generic.List[object]
     $failedDomains = New-Object System.Collections.Generic.List[string]
     $warnings      = New-Object System.Collections.Generic.List[string]
+    # LDAP round-trip ledger; nested helpers increment it in place so the log can
+    # report exactly how much directory work a run cost.
+    $queryStats = @{ GroupSearches = 0; OuSearches = 0; UserSearches = 0
+                     IdentityFetches = 0; MemberFetches = 0; MemberCacheHits = 0 }
+    $adTimer = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-DiscoveryLog ("AD acquisition: {0} domain(s), {1} CSV user(s), {2} keyword(s), {3} known group(s); sam batch {4}, ldap batch {5}" -f `
+        @($InputData.Domains).Count, @($InputData.Users).Count, @($InputData.Keywords).Count, `
+        @($InputData.KnownGroups).Count, $samBatchSize, $ldapBatchSize)
     $sidSeen       = @{}   # objectSid string -> already resolved (dedupe same physical user across domains)
     $failedGroupDomain = @{}
     $memberObjectCache = @{}
@@ -366,6 +388,7 @@ function Get-AdDiscoveryData {
         if ([string]::IsNullOrWhiteSpace($sam)) { continue }
         if ($sam -match "['()*\\/]") {
             $warnings.Add("Skipping user with suspicious SamAccountName '$sam'")
+            Write-DiscoveryLog -Level WARN -Message "Skipping user with suspicious SamAccountName '$sam'"
             continue
         }
         if (-not $csvUserBySam.ContainsKey($sam)) { $csvUserBySam[$sam] = $csvUser }
@@ -392,14 +415,20 @@ function Get-AdDiscoveryData {
         })
 
         Write-Host "  [$domainIndex/$domainTotal] $($d.Domain) via $server - resolving vendor users..."
+        $userTimer = [System.Diagnostics.Stopwatch]::StartNew()
         $domainUserCount = 0
         for ($i = 0; $i -lt $validSams.Count; $i += $samBatchSize) {
             $last = [Math]::Min($i + $samBatchSize, $validSams.Count) - 1
             $batchFilter = New-SamLdapFilter -SamAccountNames $validSams[$i..$last]
             try {
+                $sw = [System.Diagnostics.Stopwatch]::StartNew()
                 $found = @(Get-ADUser @common -LDAPFilter $batchFilter -Properties $userProps)
+                $queryStats['UserSearches']++
+                Write-DiscoveryLog -Level DEBUG -Message ("[{0}] user search: sams {1}-{2} of {3} returned {4} object(s) in {5} ms" -f `
+                    $d.Domain, ($i + 1), ($last + 1), $validSams.Count, $found.Count, $sw.ElapsedMilliseconds)
             } catch {
                 $warnings.Add("User lookup failed in '$($d.Domain)': $($_.Exception.Message)")
+                Write-DiscoveryLog -Level WARN -Message ("[{0}] user search failed: {1}" -f $d.Domain, $_.Exception.Message)
                 continue
             }
             foreach ($u in $found) {
@@ -439,6 +468,7 @@ function Get-AdDiscoveryData {
         }
         $domainUserCounts[$d.Domain] = $domainUserCount
         Write-Host "  [$domainIndex/$domainTotal] $($d.Domain) - resolved $domainUserCount vendor users"
+        Write-DiscoveryLog ("[{0}] resolved {1} vendor user(s) in {2} ms" -f $d.Domain, $domainUserCount, $userTimer.ElapsedMilliseconds)
     }
 
     $allVendorUsers = $vendorUsers.ToArray()
@@ -456,11 +486,13 @@ function Get-AdDiscoveryData {
 
     foreach ($ctx in $domainContexts) {
         Write-Host "  [$($ctx.Index)/$domainTotal] $($ctx.Domain) - finding candidate groups..."
+        $domainTimer = [System.Diagnostics.Stopwatch]::StartNew()
         $candidateSeen = @{}
         $candidateDns = New-Object System.Collections.Generic.List[string]
         $fetchedGroupByDn = @{}   # dn -> full search-returned object, reused at hydration
 
         Write-Host "    direct vendor memberships..."
+        $phaseMark = $candidateDns.Count
         foreach ($u in $allVendorUsers) {
             foreach ($memberOf in @($u.MemberOf)) {
                 if (Test-DistinguishedNameInDomain -DistinguishedName $memberOf -DomainDn $ctx.DomainDn) {
@@ -491,9 +523,12 @@ function Get-AdDiscoveryData {
                 -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
             [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
         }
+        Write-DiscoveryLog ("[{0}] direct vendor memberships: +{1} candidate(s) ({2} total)" -f `
+            $ctx.Domain, ($candidateDns.Count - $phaseMark), $candidateDns.Count)
 
         if ($keywords.Count -gt 0) {
             Write-Host "    keyword searches..."
+            $phaseMark = $candidateDns.Count
             $keywordClauses = New-Object System.Collections.Generic.List[string]
             foreach ($keyword in $keywords) {
                 $keywordClauses.Add((New-ContainsFilter -Attribute 'name' -Value $keyword))
@@ -507,7 +542,11 @@ function Get-AdDiscoveryData {
                 [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
 
+            Write-DiscoveryLog ("[{0}] keyword searches: +{1} candidate(s) ({2} total)" -f `
+                $ctx.Domain, ($candidateDns.Count - $phaseMark), $candidateDns.Count)
+
             Write-Host "    OU keyword searches..."
+            $phaseMark = $candidateDns.Count
             $ouClauses = @($keywords | ForEach-Object { New-ContainsFilter -Attribute 'name' -Value $_ })
             $ouFilter = New-LdapOrFilter -Clauses $ouClauses
             $ous = Invoke-AdOuSearch -Common $ctx.Common -Domain $ctx.Domain -LDAPFilter $ouFilter `
@@ -520,10 +559,13 @@ function Get-AdDiscoveryData {
                     -FailedGroupDomain $failedGroupDomain -Warnings $warnings
                 [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
+            Write-DiscoveryLog ("[{0}] OU keyword searches: {1} matching OU(s), +{2} candidate(s) ({3} total)" -f `
+                $ctx.Domain, @($ous).Count, ($candidateDns.Count - $phaseMark), $candidateDns.Count)
         }
 
         if ($descriptionUserTokens.Count -gt 0) {
             Write-Host "    description user-token searches..."
+            $phaseMark = $candidateDns.Count
             $tokenClauses = New-Object System.Collections.Generic.List[string]
             foreach ($token in $descriptionUserTokens) {
                 $tokenClauses.Add((New-ContainsFilter -Attribute 'description' -Value $token))
@@ -535,9 +577,12 @@ function Get-AdDiscoveryData {
                     -LDAPFilter $filter -Properties $groupProps -FailedGroupDomain $failedGroupDomain -Warnings $warnings
                 [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
+            Write-DiscoveryLog ("[{0}] description user-token searches ({1} token(s)): +{2} candidate(s) ({3} total)" -f `
+                $ctx.Domain, $descriptionUserTokens.Count, ($candidateDns.Count - $phaseMark), $candidateDns.Count)
         }
 
         Write-Host "    known group lookups..."
+        $phaseMark = $candidateDns.Count
         foreach ($known in @($InputData.KnownGroups)) {
             if ("$($known.Domain)" -ine "$($ctx.Domain)") { continue }
             $identity = "$($known.Identity)"
@@ -551,6 +596,8 @@ function Get-AdDiscoveryData {
                 [void](Add-GroupsFromSearch -Groups $groups -Seen $candidateSeen -List $candidateDns -ObjectCache $fetchedGroupByDn)
             }
         }
+        Write-DiscoveryLog ("[{0}] known group lookups: +{1} candidate(s) ({2} total)" -f `
+            $ctx.Domain, ($candidateDns.Count - $phaseMark), $candidateDns.Count)
 
         # Candidate names feed description searches only when the engine itself
         # would trust them: each round runs the real matching pipeline over the
@@ -563,7 +610,10 @@ function Get-AdDiscoveryData {
         $queriedChildren = @{}       # child DN -> parent-membership query issued
         $queriedGroupNames = @{}     # normalized group name -> description/info query issued
         $hydratedByDn = @{}
+        $roundsRun = 0
         for ($round = 0; $round -lt 25; $round++) {
+            $roundsRun = $round + 1
+            $hydratedMark = $hydratedByDn.Count
             $changed = $false
 
             # Hydration supplies authoritative attributes for every candidate and
@@ -662,14 +712,23 @@ function Get-AdDiscoveryData {
                 }
             }
 
+            Write-DiscoveryLog -Level DEBUG -Message ("[{0}] related round {1}: hydrated +{2}, parent lookups for {3} DN(s), {4} trusted name(s) searched, {5} candidate(s) total" -f `
+                $ctx.Domain, $roundsRun, ($hydratedByDn.Count - $hydratedMark), $searchDns.Count, $newTrustedNames.Count, $candidateDns.Count)
+
             $hasUnhydrated = $false
             foreach ($dn in @($candidateDns)) {
                 if (-not $hydratedByDn.ContainsKey($dn.ToLower())) { $hasUnhydrated = $true; break }
             }
             if (-not $changed -and -not $hasUnhydrated) { break }
         }
+        Write-DiscoveryLog ("[{0}] related group lookups converged after {1} round(s): {2} candidate(s)" -f `
+            $ctx.Domain, $roundsRun, $candidateDns.Count)
 
         Write-Host "    shaping $($candidateDns.Count) candidate groups..."
+        $shapeTimer = [System.Diagnostics.Stopwatch]::StartNew()
+        $memberFetchMark = $queryStats['MemberFetches']
+        $memberHitMark   = $queryStats['MemberCacheHits']
+        $memberRefCount  = 0
         $domainGroupCount = 0
         foreach ($dn in $candidateDns) {
             $group = $hydratedByDn[$dn.ToLower()]
@@ -680,7 +739,7 @@ function Get-AdDiscoveryData {
             $memberDirectoryObjects = New-Object System.Collections.Generic.List[object]
             foreach ($memberDn in @($group.member)) {
                 $memberObject = Resolve-AdMemberObject -Common $ctx.Common -DistinguishedName $memberDn -Cache $memberObjectCache
-                if ($memberObject) { $memberDirectoryObjects.Add($memberObject) }
+                if ($memberObject) { $memberDirectoryObjects.Add($memberObject); $memberRefCount++ }
             }
             $allGroups.Add([pscustomobject]@{
                 Domain = $ctx.Domain; Name = $group.Name; DistinguishedName = $group.DistinguishedName
@@ -693,14 +752,24 @@ function Get-AdDiscoveryData {
             })
             $domainGroupCount++
         }
+        Write-DiscoveryLog ("[{0}] shaped {1} group(s) with {2} member reference(s) ({3} directory fetches, {4} cache hits) in {5} ms" -f `
+            $ctx.Domain, $domainGroupCount, $memberRefCount, `
+            ($queryStats['MemberFetches'] - $memberFetchMark), ($queryStats['MemberCacheHits'] - $memberHitMark), $shapeTimer.ElapsedMilliseconds)
         if ($failedGroupDomain.ContainsKey($ctx.Domain) -and -not ($failedDomains -contains $ctx.Domain)) {
             $failedDomains.Add($ctx.Domain)
         }
         Write-Host "  [$($ctx.Index)/$domainTotal] $($ctx.Domain) - $domainGroupCount candidate groups, $($domainUserCounts[$ctx.Domain]) vendor users"
+        Write-DiscoveryLog ("[{0}] domain complete in {1:n1} s: {2} candidate group(s), {3} vendor user(s)" -f `
+            $ctx.Domain, $domainTimer.Elapsed.TotalSeconds, $domainGroupCount, $domainUserCounts[$ctx.Domain])
     }
 
     $groupsArr = $allGroups.ToArray()
     $usersArr  = $vendorUsers.ToArray()
+    Write-DiscoveryLog ("AD acquisition complete in {0:n1} s: {1} group(s), {2} vendor user(s), {3} warning(s), {4} failed domain(s)" -f `
+        $adTimer.Elapsed.TotalSeconds, $groupsArr.Count, $usersArr.Count, $warnings.Count, $failedDomains.Count)
+    Write-DiscoveryLog ("LDAP work: {0} group searches, {1} OU searches, {2} user searches, {3} identity fetches, {4} member fetches ({5} member cache hits)" -f `
+        $queryStats['GroupSearches'], $queryStats['OuSearches'], $queryStats['UserSearches'], `
+        $queryStats['IdentityFetches'], $queryStats['MemberFetches'], $queryStats['MemberCacheHits'])
     [pscustomobject]@{
         Groups        = $groupsArr
         VendorUsers   = $usersArr
