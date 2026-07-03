@@ -245,7 +245,11 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
 
   // ---------- tiny DOM helpers (text-only; never innerHTML with data) ----------
   function el(tag, cls, text){ var n=document.createElement(tag); if(cls) n.className=cls; if(text!=null) n.textContent=String(text); return n; }
-  function arr(v){ return Array.isArray(v) ? v : []; }
+  // Robust to Windows PowerShell 5.1 ConvertTo-Json, which unrolls a single-element
+  // array to a bare object/scalar: wrap a lone non-null value back into an array.
+  function arr(v){ return Array.isArray(v) ? v : (v==null ? [] : [v]); }
+  // CSV formula-injection guard, mirroring Protect-CsvCell (the pipeline CSV path).
+  function csvGuard(v){ v = (v==null) ? "" : String(v); return /^[=+\-@\t\r]/.test(v) ? "'"+v : v; }
   function setText(id, v){ document.getElementById(id).textContent = (v==null||v==="") ? "—" : String(v); }
 
   // ---------- formatters (return DOM elements => injection-safe) ----------
@@ -256,6 +260,19 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     return el("span", "pill "+v, v);
   }
   function fmtMemberOf(cell){ return el("span", null, arr(cell.getValue()).join("; ")); }
+  // Download accessors: harden text against CSV formula injection and render the
+  // object/array columns as readable strings instead of "[object Object]".
+  function dlText(value){ return csvGuard(value); }
+  function dlMemberOf(value){ return csvGuard(arr(value).join("; ")); }
+  function dlCounts(value, data){ var c=(data && data.memberCounts) || {}; return (c.known||0)+"K/"+(c.nested||0)+"N/"+(c.other||0)+"O"; }
+  function withDownloadAccessors(cols){
+    cols.forEach(function(c){
+      if(c.field==="memberCounts") c.accessorDownload = dlCounts;
+      else if(c.field==="memberOf") c.accessorDownload = dlMemberOf;
+      else if(c.field) c.accessorDownload = dlText;
+    });
+    return cols;
+  }
   function fmtCounts(cell){
     var c = cell.getData().memberCounts || {};
     var wrap = el("span","mcount");
@@ -386,7 +403,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
   document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDetail(); });
 
   // ---------- global search ----------
-  var SEARCH_FIELDS = ["name","domain","owner","description","info","mail","confidence","groupScope","groupCategory","source","distinguishedName"];
+  var SEARCH_FIELDS = ["name","domain","owner","description","info","mail","confidence","score","adminCount","whenCreated","whenChanged","groupScope","groupCategory","source","distinguishedName"];
   function globalMatch(data, params){
     var t = (params.term||"").toLowerCase(); if(!t) return true;
     for(var i=0;i<SEARCH_FIELDS.length;i++){ var val=data[SEARCH_FIELDS[i]]; if(val!=null && String(val).toLowerCase().indexOf(t)>-1) return true; }
@@ -450,9 +467,9 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     var banner = document.getElementById("banner");
     banner.textContent="";
     if(failed.length || warns.length){
-      if(failed.length){ banner.appendChild(el("strong","Failed domains: ")); banner.appendChild(el("span",null, failed.join(", "))); }
+      if(failed.length){ banner.appendChild(el("strong",null,"Failed domains: ")); banner.appendChild(el("span",null, failed.join(", "))); }
       if(warns.length){
-        banner.appendChild(el("strong", (failed.length?"  ":"") + warns.length + (warns.length===1?" warning":" warnings")));
+        banner.appendChild(el("strong", null, (failed.length?"  ":"") + warns.length + (warns.length===1?" warning":" warnings")));
         var ul=el("ul"); warns.forEach(function(w){ ul.appendChild(el("li",null,w)); }); banner.appendChild(ul);
       }
       banner.style.display="block";
@@ -462,7 +479,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
       data: arr(data.groups),
       layout: "fitColumns",
       height: "100%",
-      columns: columns(),
+      columns: withDownloadAccessors(columns()),
       movableColumns: true,
       groupBy: "domain",
       groupStartOpen: true,
@@ -487,7 +504,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
   function loadFile(file){
     var err=document.getElementById("err"); err.textContent="";
     var reader=new FileReader();
-    reader.onload=function(){ try{ var d=parsePayload(String(reader.result)); if(!d||!Array.isArray(d.groups)) throw new Error("no 'groups' array"); render(d); }
+    reader.onload=function(){ try{ var d=parsePayload(String(reader.result)); if(!d||!d.groups) throw new Error("no 'groups' data"); render(d); }
       catch(ex){ err.textContent="Could not read that file: "+ex.message; } };
     reader.onerror=function(){ err.textContent="Could not read that file."; };
     reader.readAsText(file);
@@ -499,7 +516,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
   drop.addEventListener("drop", function(e){ if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 
   // ---------- boot ----------
-  if(window.__DISCOVERY__ && Array.isArray(window.__DISCOVERY__.groups)){ render(window.__DISCOVERY__); }
+  if(window.__DISCOVERY__ && window.__DISCOVERY__.groups){ render(window.__DISCOVERY__); }
 })();
 </script>
 </body>
