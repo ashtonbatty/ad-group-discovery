@@ -521,7 +521,7 @@ Describe 'Get-AdDiscoveryData' {
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
-                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+                description=''; info=''; managedBy=$userDn; GroupScope='Global'; GroupCategory='Security' }
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
             [pscustomobject]@{ Name='Global Stewards'; DistinguishedName=$parentDn
@@ -529,7 +529,7 @@ Describe 'Get-AdDiscoveryData' {
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $childDn } -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
-                description=''; info=''; managedBy=''; member=@($userDn); memberof=@($parentDn)
+                description=''; info=''; managedBy=$userDn; member=@($userDn); memberof=@($parentDn)
                 GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
                 whenCreated=$null; whenChanged=$null }
         }
@@ -969,5 +969,46 @@ Describe 'Get-AdDiscoveryData' {
         # Both users' member clauses must still be present across the filters.
         ($script:capturedFilters -join "`n") | Should -Match 'member=CN=John Smith'
         ($script:capturedFilters -join "`n") | Should -Match 'member=CN=Mary Jones'
+    }
+    It 'skips member resolution for candidates the engine scores None' {
+        # A no-signal parent pulled in by the parent lookup must not cost
+        # member-resolution searches: the engine can never select it.
+        $userDn   = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $childDn  = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $parentDn = 'CN=Big Umbrella,OU=Groups,DC=corp,DC=example,DC=com'
+        $strangerDn = 'CN=Uncached Stranger,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@($parentDn)
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
+            [pscustomobject]@{ Name='Big Umbrella'; DistinguishedName=$parentDn
+                description=''; info=''; managedBy=''; member=@($childDn, $strangerDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        # Child (vendor member -> Low) keeps its member objects...
+        $child = $data.Groups | Where-Object { $_.Name -eq 'Acme Admins' }
+        @($child.MemberDirectoryObjects).Count | Should -Be 1
+        # ...the None-scored umbrella does not, and its unknown member is never fetched.
+        $parent = $data.Groups | Where-Object { $_.Name -eq 'Big Umbrella' }
+        @($parent.MemberDirectoryObjects).Count | Should -Be 0
+        Should -Invoke Get-ADObject -Exactly -Times 0
     }
 }
