@@ -195,6 +195,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
         <option value="groupScope">Scope</option>
         <option value="groupCategory">Category</option>
         <option value="source">Source</option>
+        <option value="__knownMember">Member (known users)</option>
         <option value="">None</option>
       </select>
     </div>
@@ -260,26 +261,45 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     return el("span", "pill "+v, v);
   }
   function fmtMemberOf(cell){ return el("span", null, arr(cell.getValue()).join("; ")); }
+  // "Alice Smith (asmith)" — the one member display string used by the Member List
+  // column, its export, and the known-member grouping, so they always agree.
+  function memberLabel(m){
+    var name = (m && (m.displayName || m.samAccountName)) || "(unknown)";
+    return (m && m.samAccountName && m.samAccountName !== name) ? name+" ("+m.samAccountName+")" : name;
+  }
+  function fmtMembers(cell){ return el("span", null, arr(cell.getValue()).map(memberLabel).join("; ")); }
+  // Non-zero buckets spelled out ("3 known · 1 other") — a bare count+letter like
+  // "1O" reads as the number 10.
+  function countParts(d){
+    var c = (d && d.memberCounts) || {};
+    var parts = [];
+    [["known",c.known],["nested",c.nested],["other",c.other]].forEach(function(p){ if(p[1]) parts.push(p[1]+" "+p[0]); });
+    return parts;
+  }
   // Download accessors: harden text against CSV formula injection and render the
   // object/array columns as readable strings instead of "[object Object]".
   function dlText(value){ return csvGuard(value); }
   function dlMemberOf(value){ return csvGuard(arr(value).join("; ")); }
-  function dlCounts(value, data){ var c=(data && data.memberCounts) || {}; return (c.known||0)+"K/"+(c.nested||0)+"N/"+(c.other||0)+"O"; }
+  function dlCounts(value, data){ var parts = countParts(data); return parts.length ? parts.join("; ") : "0"; }
+  function dlMembers(value){
+    return csvGuard(arr(value).map(function(m){ return memberLabel(m) + (m && m.memberType ? " ["+m.memberType+"]" : ""); }).join("; "));
+  }
   function withDownloadAccessors(cols){
     cols.forEach(function(c){
       if(c.field==="memberCounts") c.accessorDownload = dlCounts;
       else if(c.field==="memberOf") c.accessorDownload = dlMemberOf;
+      else if(c.field==="members") c.accessorDownload = dlMembers;
       else if(c.field) c.accessorDownload = dlText;
     });
     return cols;
   }
   function fmtCounts(cell){
-    var c = cell.getData().memberCounts || {};
     var wrap = el("span","mcount");
-    [["known",c.known],["nested",c.nested],["other",c.other]].forEach(function(pair,i){
-      if(i) wrap.appendChild(el("span",null," · "));
-      var n = pair[1]||0;
-      wrap.appendChild(el("span", n?null:"z", n + pair[0][0].toUpperCase()));
+    var parts = countParts(cell.getData());
+    if(!parts.length){ wrap.appendChild(el("span","z","0")); return wrap; }
+    parts.forEach(function(p,i){
+      if(i) wrap.appendChild(el("span","z"," · "));
+      wrap.appendChild(el("span",null,p));
     });
     return wrap;
   }
@@ -289,6 +309,18 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
   function sortConfidence(a,b){ return (RANK[a]||0)-(RANK[b]||0); }
   function sortCounts(a,b,aRow,bRow){ return totalMembers(aRow.getData())-totalMembers(bRow.getData()); }
   function sortMemberOf(a,b){ return arr(a).length-arr(b).length; }
+  function sortMembers(a,b){
+    return arr(a).map(memberLabel).join("; ").toLowerCase().localeCompare(arr(b).map(memberLabel).join("; ").toLowerCase());
+  }
+
+  // ---------- member matching (Member List header filter + global search) ----------
+  function memberSearch(term, members){
+    term = String(term).toLowerCase();
+    return arr(members).some(function(m){
+      return ((m && m.displayName ? m.displayName : "")+" "+(m && m.samAccountName ? m.samAccountName : "")).toLowerCase().indexOf(term) > -1;
+    });
+  }
+  function filterMembers(headerValue, rowValue){ return headerValue==="" || memberSearch(headerValue, rowValue); }
 
   // ---------- column definitions ----------
   function columns(){
@@ -301,8 +333,12 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
       { title:"Domain", field:"domain", widthGrow:2, minWidth:150, formatter:fmtText, headerFilter:"input" },
       { title:"Owner", field:"owner", widthGrow:2, minWidth:130, formatter:fmtText, headerFilter:"input" },
       { title:"Description", field:"description", widthGrow:4, minWidth:200, formatter:fmtText, headerFilter:"input" },
-      { title:"Members K·N·O", field:"memberCounts", width:120, headerSort:true, sorter:sortCounts, formatter:fmtCounts,
-        headerTooltip:"Known · Nested groups · Other" },
+      { title:"Members", field:"memberCounts", width:170, headerSort:true, sorter:sortCounts, formatter:fmtCounts,
+        headerTooltip:"Member counts: known vendor users · nested groups · other" },
+      { title:"Member List", field:"members", widthGrow:3, minWidth:200, visible:false, download:true,
+        formatter:fmtMembers, sorter:sortMembers, headerFilter:"input", headerFilterFunc:filterMembers,
+        headerFilterPlaceholder:"name or sam…",
+        headerTooltip:"All captured members; filter matches display name or sAMAccountName" },
       { title:"Member Of", field:"memberOf", widthGrow:2, minWidth:140, formatter:fmtMemberOf, sorter:sortMemberOf, headerFilter:"input" },
       { title:"Scope", field:"groupScope", width:120, formatter:fmtText,
         headerFilter:"list", headerFilterParams:{valuesLookup:true, clearable:true} },
@@ -409,12 +445,33 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     for(var i=0;i<SEARCH_FIELDS.length;i++){ var val=data[SEARCH_FIELDS[i]]; if(val!=null && String(val).toLowerCase().indexOf(t)>-1) return true; }
     if(arr(data.memberOf).some(function(g){ return String(g).toLowerCase().indexOf(t)>-1; })) return true;
     if(arr(data.reasons).some(function(r){ return (String(r.pattern)+" "+String(r.value)).toLowerCase().indexOf(t)>-1; })) return true;
-    if(arr(data.members).some(function(m){ return (String(m.displayName)+" "+String(m.samAccountName)).toLowerCase().indexOf(t)>-1; })) return true;
+    if(memberSearch(t, data.members)) return true;
     return false;
   }
 
   // ---------- group-by (with confidence ordered by rank, not appearance) ----------
+  // "Member (known users)" grouping is row-per-membership: each group row is
+  // duplicated once per known vendor member (synthetic __knownMember field), so a
+  // group appears under every known user it contains. The base rows are restored
+  // when any other grouping is chosen; the header Groups stat stays the true count.
+  var baseRows = [], memberMode = false;
+  var NO_KNOWN = "(no known members)";
+  function shallowCopy(o){ var c={}; for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)) c[k]=o[k]; } return c; }
+  function expandByKnownMember(rows){
+    var out = [];
+    rows.forEach(function(d){
+      var known = arr(d.members).filter(function(m){ return m && m.memberType==="Known"; });
+      if(!known.length){ var c=shallowCopy(d); c.__knownMember=NO_KNOWN; out.push(c); return; }
+      known.forEach(function(m){ var c=shallowCopy(d); c.__knownMember=memberLabel(m); out.push(c); });
+    });
+    return out;
+  }
   function applyGroupBy(field){
+    var wantMember = field==="__knownMember";
+    if(wantMember !== memberMode){
+      memberMode = wantMember;
+      table.setData(wantMember ? expandByKnownMember(baseRows) : baseRows);
+    }
     table.setGroupValues(field==="confidence" ? [["Confirmed","High","Medium","Low"]] : false);
     table.setGroupBy(field || false);
   }
@@ -475,8 +532,10 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
       banner.style.display="block";
     } else { banner.style.display="none"; }
 
+    baseRows = arr(data.groups); memberMode = false;
+    document.getElementById("groupby").value = "domain";
     table = new Tabulator("#grid-card", {
-      data: arr(data.groups),
+      data: baseRows,
       layout: "fitColumns",
       height: "100%",
       columns: withDownloadAccessors(columns()),

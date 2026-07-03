@@ -92,10 +92,12 @@ Members flagged with a leading `*` in HTML/console reports are vendor users.
 - Console summary — counts per domain / band / reason, plus failed domains
 - `Json` format (one of the default `-Formats`) — `discovery-data.js` + `discovery-data.json`
   (the same payload, as a script tag and as plain JSON) plus a self-contained
-  `discovery-report.html` interactive viewer: sort, filter, group-by, collapse,
-  full-text search, column show/hide, row detail, and CSV export. Double-click
-  `discovery-report.html` to open it — no server needed. Its CSV export is hardened
-  against formula injection like the pipeline CSVs.
+  `discovery-report.html` interactive viewer: sort, filter, group-by (including
+  by known vendor member, one row per membership), collapse, full-text search,
+  column show/hide (a hidden-by-default Member List column shows and filters the
+  actual members), row detail, and CSV export (always includes the member list).
+  Double-click `discovery-report.html` to open it — no server needed. Its CSV
+  export is hardened against formula injection like the pipeline CSVs.
 
 Report cells are hardened against CSV formula injection and HTML is escaped against
 XSS, since group metadata can contain attacker-influenceable values.
