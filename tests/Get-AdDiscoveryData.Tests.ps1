@@ -164,6 +164,34 @@ Describe 'Get-AdDiscoveryData' {
         $data = Get-AdDiscoveryData -InputData $inp
         $data.VendorUsers.Count | Should -Be 2
     }
+    It 'matches a CSV sam to the AD-returned account regardless of case, in every domain' {
+        # CSV entry is mixed-case; AD (via a case-insensitive LDAP filter) returns its
+        # own canonical casing, which can differ per domain. The csvUserBySam lookup
+        # must normalize both sides the same way so no domain silently drops the user.
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'corp.example.com' } -MockWith {
+            [pscustomobject]@{ SamAccountName='JSmith'; DisplayName='John (Corp)'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@corp.example.com'; mail=$null
+                DistinguishedName='CN=jsmith,DC=corp,DC=example,DC=com'
+                objectSid='S-1-5-21-100-200-300-1001' }
+        }
+        Mock -CommandName Get-ADUser -ParameterFilter { $Server -eq 'partner.example.com' } -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John (Partner)'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@partner.example.com'; mail=$null
+                DistinguishedName='CN=jsmith,DC=partner,DC=example,DC=com'
+                objectSid='S-1-5-21-999-888-777-1001' }
+        }
+        $inp = [pscustomobject]@{
+            Users   = @([pscustomobject]@{ SamAccountName='  jSMITH '; UUserId='U1'; DisplayName='John Smith' })
+            Domains = @(
+                [pscustomobject]@{ Domain='corp.example.com';    Server='corp.example.com';    Name='Corp' }
+                [pscustomobject]@{ Domain='partner.example.com'; Server='partner.example.com'; Name='Partner' }
+            )
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.VendorUsers.Count | Should -Be 2
+        $data.VendorUsers.UUserId | Should -Be @('U1', 'U1')
+    }
     It 'issues one batched LDAP query per domain regardless of user count' {
         Mock -CommandName Get-ADGroup -MockWith { @() }
         Mock -CommandName Get-ADUser  -MockWith { @() }

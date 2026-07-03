@@ -402,8 +402,11 @@ function Get-AdDiscoveryData {
     $promptedDomainCredentials = @{}
 
     # Validate CSV users once and index them by sam so batched query results can be
-    # mapped back to their CSV row for token building.
-    $csvUserBySam = @{}   # PowerShell hashtable: string keys are case-insensitive
+    # mapped back to their CSV row for token building. Keyed explicitly on a
+    # trimmed, lowercased sam (not left to hashtable default case-insensitivity)
+    # so every sam lookup in this function normalizes the same way, regardless of
+    # how the CSV or AD happened to case it.
+    $csvUserBySam = @{}
     foreach ($csvUser in $InputData.Users) {
         $sam = $csvUser.SamAccountName
         if ([string]::IsNullOrWhiteSpace($sam)) { continue }
@@ -412,7 +415,8 @@ function Get-AdDiscoveryData {
             Write-DiscoveryLog -Level WARN -Message "Skipping user with suspicious SamAccountName '$sam'"
             continue
         }
-        if (-not $csvUserBySam.ContainsKey($sam)) { $csvUserBySam[$sam] = $csvUser }
+        $samKey = $sam.Trim().ToLowerInvariant()
+        if (-not $csvUserBySam.ContainsKey($samKey)) { $csvUserBySam[$samKey] = $csvUser }
     }
     $validSams = @($csvUserBySam.Keys | Sort-Object)   # deterministic filter strings
 
@@ -458,7 +462,7 @@ function Get-AdDiscoveryData {
                 # shaping never re-fetches them via Get-ADObject.
                 Add-CachedMemberObject -Cache $memberObjectCache -DistinguishedName "$($u.DistinguishedName)" `
                     -SamAccountName "$($u.SamAccountName)" -DisplayName "$($u.displayName)" -Name "$($u.Name)" -ObjectClass 'user'
-                $csvUser = $csvUserBySam["$($u.SamAccountName)"]
+                $csvUser = $csvUserBySam["$($u.SamAccountName)".Trim().ToLowerInvariant()]
                 if (-not $csvUser) { continue }   # directory returned a sam we did not ask for
                 $sid = "$($u.objectSid)"
                 if ($sid -and $sidSeen.ContainsKey($sid)) { continue }   # same physical user already resolved

@@ -319,7 +319,19 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
       return ((m && m.displayName ? m.displayName : "")+" "+(m && m.samAccountName ? m.samAccountName : "")).toLowerCase().indexOf(term) > -1;
     });
   }
-  function filterMembers(headerValue, rowValue){ return headerValue==="" || memberSearch(headerValue, rowValue); }
+  // In the "Member (known users)" grouping each row stands for one specific known
+  // member (rowData.__knownMember), even though it still carries the group's FULL
+  // original member list. Matching against that full list here would leak a row
+  // into every known member's bucket it happens to share a group with, instead of
+  // just its own. Prefer the row's own bucket value when present; fall back to a
+  // full-roster search for the ungrouped view, where there is no single "owning" member.
+  function filterMembers(headerValue, rowValue, rowData){
+    if(headerValue==="") return true;
+    if(rowData && rowData.__knownMember!=null){
+      return String(rowData.__knownMember).toLowerCase().indexOf(String(headerValue).toLowerCase()) > -1;
+    }
+    return memberSearch(headerValue, rowValue);
+  }
 
   // ---------- column definitions ----------
   function columns(){
@@ -338,6 +350,14 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
         formatter:fmtMembers, sorter:sortMembers, headerFilter:"input", headerFilterFunc:filterMembers,
         headerFilterPlaceholder:"name or sam…",
         headerTooltip:"All captured members; filter matches display name or sAMAccountName" },
+      // Only meaningful in the "Member (known users)" grouping (one row per known
+      // member); auto-shown there by applyGroupBy. field is the raw sam so the
+      // column header sorts by sam, not by the "Name (sam)" display label.
+      { title:"Known User", field:"__knownSam", widthGrow:2, minWidth:160, visible:false, download:true,
+        formatter:function(cell){ return el("span", null, cell.getData().__knownMember || ""); },
+        sorter:"string", headerFilter:"input", headerFilterFunc:filterMembers,
+        headerFilterPlaceholder:"name or sam…",
+        headerTooltip:"The known vendor user this row is grouped under; sortable and filterable by name or sAMAccountName" },
       { title:"Member Of", field:"memberOf", widthGrow:2, minWidth:140, formatter:fmtMemberOf, sorter:sortMemberOf, headerFilter:"input" },
       { title:"Scope", field:"groupScope", width:120, formatter:fmtText,
         headerFilter:"list", headerFilterParams:{valuesLookup:true, clearable:true} },
@@ -444,6 +464,9 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     for(var i=0;i<SEARCH_FIELDS.length;i++){ var val=data[SEARCH_FIELDS[i]]; if(val!=null && String(val).toLowerCase().indexOf(t)>-1) return true; }
     if(arr(data.memberOf).some(function(g){ return String(g).toLowerCase().indexOf(t)>-1; })) return true;
     if(arr(data.reasons).some(function(r){ return (String(r.pattern)+" "+String(r.value)).toLowerCase().indexOf(t)>-1; })) return true;
+    // Same leak as filterMembers: a member-mode row must match on its own known
+    // member, not any member of the group it was expanded from.
+    if(data.__knownMember!=null) return String(data.__knownMember).toLowerCase().indexOf(t) > -1;
     if(memberSearch(t, data.members)) return true;
     return false;
   }
@@ -460,16 +483,28 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
     var out = [];
     rows.forEach(function(d){
       var known = arr(d.members).filter(function(m){ return m && m.memberType==="Known"; });
-      if(!known.length){ var c=shallowCopy(d); c.__knownMember=NO_KNOWN; out.push(c); return; }
-      known.forEach(function(m){ var c=shallowCopy(d); c.__knownMember=memberLabel(m); out.push(c); });
+      if(!known.length){ var c=shallowCopy(d); c.__knownMember=NO_KNOWN; c.__knownSam=""; out.push(c); return; }
+      known.forEach(function(m){
+        var c=shallowCopy(d);
+        c.__knownMember=memberLabel(m);
+        c.__knownSam=(m && m.samAccountName) ? m.samAccountName : "";
+        out.push(c);
+      });
     });
     return out;
   }
+  var DEFAULT_SORT = [ {column:"confidence", dir:"desc"}, {column:"score", dir:"desc"} ];
   function applyGroupBy(field){
     var wantMember = field==="__knownMember";
     if(wantMember !== memberMode){
       memberMode = wantMember;
       table.setData(wantMember ? expandByKnownMember(baseRows) : baseRows);
+      var knownUserCol = table.getColumn("__knownSam");
+      if(knownUserCol){ wantMember ? knownUserCol.show() : knownUserCol.hide(); }
+      // The known-user grouping reads best sorted alphabetically by sam within it;
+      // leaving the table's own row sort would otherwise still order by confidence/
+      // score, which has nothing to do with how the groups themselves are keyed.
+      table.setSort(wantMember ? [{column:"__knownSam", dir:"asc"}] : DEFAULT_SORT);
     }
     table.setGroupValues(field==="confidence" ? [["Confirmed","High","Medium","Low"]] : false);
     table.setGroupBy(field || false);
@@ -542,7 +577,7 @@ main{flex:1;min-height:0;padding:16px 22px 22px;display:flex}
       groupBy: "domain",
       groupStartOpen: true,
       groupHeader: groupHeader,
-      initialSort: [ {column:"confidence", dir:"desc"}, {column:"score", dir:"desc"} ],
+      initialSort: DEFAULT_SORT,
       placeholder: "No groups match the current filters."
     });
 
