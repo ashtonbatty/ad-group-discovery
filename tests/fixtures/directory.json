@@ -1236,7 +1236,9 @@
         "CN=Alice Morgan,OU=Staff,DC=corp,DC=globex,DC=com",
         "CN=Bob Turner,OU=Staff,DC=corp,DC=globex,DC=com"
       ],
-      "MemberOf": [],
+      "MemberOf": [
+        "CN=Administrators,CN=Users,DC=corp,DC=globex,DC=com"
+      ],
       "GroupScope": "Global",
       "GroupCategory": "Security",
       "Mail": null,
@@ -1335,6 +1337,69 @@
       "Name": "SQL Backup Operators",
       "DistinguishedName": "CN=SQL Backup Operators,OU=Groups,DC=corp,DC=globex,DC=com",
       "Description": "SQL estate backup job operators. Escalations handled by Domain Admins.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=Bob Turner,OU=Staff,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": null,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Globex"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "Platform Host Admins",
+      "DistinguishedName": "CN=Platform Host Admins,OU=Northwind,OU=Vendors,DC=corp,DC=globex,DC=com",
+      "Description": "Northwind-managed platform host administration.",
+      "Info": "",
+      "ManagedBy": "CN=Kiril Volkov,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com",
+      "Member": [
+        "CN=Rosa Santos,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com",
+        "CN=Aisha Wright,OU=Contractors,OU=Vendors,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [
+        "CN=Administrators,CN=Users,DC=corp,DC=globex,DC=com"
+      ],
+      "GroupScope": "Global",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": 1,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Northwind"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "Administrators",
+      "DistinguishedName": "CN=Administrators,CN=Users,DC=corp,DC=globex,DC=com",
+      "Description": "Built-in administrators of the domain.",
+      "Info": "",
+      "ManagedBy": "",
+      "Member": [
+        "CN=George Hunt,OU=Staff,DC=corp,DC=globex,DC=com",
+        "CN=Alice Morgan,OU=Staff,DC=corp,DC=globex,DC=com",
+        "CN=Platform Host Admins,OU=Northwind,OU=Vendors,DC=corp,DC=globex,DC=com",
+        "CN=Globex IT Admins,OU=Groups,DC=corp,DC=globex,DC=com"
+      ],
+      "MemberOf": [],
+      "GroupScope": "DomainLocal",
+      "GroupCategory": "Security",
+      "Mail": null,
+      "AdminCount": 1,
+      "WhenCreated": "2021-06-01T09:00:00",
+      "WhenChanged": "2024-10-15T14:30:00",
+      "Org": "Globex"
+    },
+    {
+      "Domain": "corp.globex.com",
+      "Name": "Workstation Local Rights",
+      "DistinguishedName": "CN=Workstation Local Rights,OU=Groups,DC=corp,DC=globex,DC=com",
+      "Description": "Grants local Administrators rights on managed workstations.",
       "Info": "",
       "ManagedBy": "",
       "Member": [

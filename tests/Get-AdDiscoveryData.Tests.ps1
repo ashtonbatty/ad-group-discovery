@@ -406,7 +406,7 @@ Describe 'Get-AdDiscoveryData' {
                 GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
                 whenCreated=$null; whenChanged=$null }
         }
-        Mock -CommandName Get-ADObject -ParameterFilter { $Identity -eq $memberDn } -MockWith {
+        Mock -CommandName Get-ADObject -ParameterFilter { $LDAPFilter -like "*distinguishedName=$memberDn*" } -MockWith {
             [pscustomobject]@{ DistinguishedName=$memberDn; sAMAccountName='bjones'
                 displayName='Bob Jones'; name='Bob Jones'; objectClass=@('top','person','user') }
         }
@@ -422,7 +422,59 @@ Describe 'Get-AdDiscoveryData' {
         $memberObject.SamAccountName | Should -Be 'bjones'
         $memberObject.DisplayName | Should -Be 'Bob Jones'
         $memberObject.ObjectClass | Should -Be 'user'
-        Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $Identity -eq $memberDn }
+        Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $LDAPFilter -like "*distinguishedName=$memberDn*" }
+    }
+    It 'resolves all uncached members of a group in one batched directory search' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $m1 = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
+        $m2 = 'CN=Ann Lee,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($m1, $m2); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADObject -MockWith {
+            @(
+                [pscustomobject]@{ DistinguishedName=$m1; sAMAccountName='bjones'
+                    displayName='Bob Jones'; name='Bob Jones'; objectClass=@('top','person','user') }
+                [pscustomobject]@{ DistinguishedName=$m2; sAMAccountName='alee'
+                    displayName='Ann Lee'; name='Ann Lee'; objectClass=@('top','person','user') }
+            )
+        }
+        $inp = [pscustomobject]@{
+            Users = @(); Keywords = @('Acme'); KnownGroups = @()
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        @($data.Groups[0].MemberDirectoryObjects).Count | Should -Be 2
+        Should -Invoke Get-ADObject -Exactly -Times 1
+    }
+    It 'gives unresolved member DNs an empty-attribute entry instead of dropping them' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $gone = 'CN=Ghost User,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($gone); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADObject -MockWith { @() }   # directory returns nothing
+        $inp = [pscustomobject]@{
+            Users = @(); Keywords = @('Acme'); KnownGroups = @()
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $entry = @($data.Groups[0].MemberDirectoryObjects)[0]
+        $entry.DistinguishedName | Should -Be $gone
+        $entry.SamAccountName | Should -Be ''
+        $entry.ObjectClass | Should -Be ''
     }
     It 'seeds the member cache with fetched vendor users so members are never re-queried' {
         $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
@@ -469,7 +521,7 @@ Describe 'Get-AdDiscoveryData' {
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
-                description=''; info=''; managedBy=''; GroupScope='Global'; GroupCategory='Security' }
+                description=''; info=''; managedBy=$userDn; GroupScope='Global'; GroupCategory='Security' }
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
             [pscustomobject]@{ Name='Global Stewards'; DistinguishedName=$parentDn
@@ -477,7 +529,7 @@ Describe 'Get-AdDiscoveryData' {
         }
         Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $childDn } -MockWith {
             [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
-                description=''; info=''; managedBy=''; member=@($userDn); memberof=@($parentDn)
+                description=''; info=''; managedBy=$userDn; member=@($userDn); memberof=@($parentDn)
                 GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
                 whenCreated=$null; whenChanged=$null }
         }
@@ -826,5 +878,164 @@ Describe 'Get-AdDiscoveryData' {
         Should -Invoke Get-ADGroup -Exactly -Times 0 -ParameterFilter {
             $LDAPFilter -like '*description=*IT**'
         }
+    }
+    It 'does not issue a description search for a built-in name trusted only via nested vendor containment' {
+        # Administrators holds one vendor-OWNED child (Owner reason -> High).
+        # The parent gains NestedVendorGroup (Medium) and must surface, but its
+        # generic name must NOT become an LDAP description-search token.
+        $userDn  = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $childDn = 'CN=Acme Host Ops,OU=Groups,DC=corp,DC=example,DC=com'
+        $adminDn = 'CN=Administrators,CN=Builtin,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { $null }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Host Ops'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=$userDn; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
+            [pscustomobject]@{ Name='Administrators'; DistinguishedName=$adminDn
+                description=''; info=''; managedBy=''; GroupScope='DomainLocal'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $childDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Host Ops'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=$userDn; member=@($userDn); memberof=@($adminDn)
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $adminDn } -MockWith {
+            [pscustomobject]@{ Name='Administrators'; DistinguishedName=$adminDn
+                description=''; info=''; managedBy=''
+                member=@($childDn, 'CN=Jane Roe,OU=Staff,DC=corp,DC=example,DC=com'); memberof=@()
+                GroupScope='DomainLocal'; GroupCategory='Security'; mail=$null; adminCount=1
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.Groups.Name | Should -Contain 'Administrators'   # still a candidate for the report
+        Should -Invoke Get-ADGroup -Exactly -Times 0 -ParameterFilter {
+            $LDAPFilter -like '*description=*Administrators**'
+        }
+        # The vendor-owned child's own name has independent evidence (Owner) and
+        # stays a trusted description token.
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*Acme Host Ops**'
+        }
+    }
+
+    It 'sends every batched OR filter intact - no space-joined clause corruption' {
+        # Regression: Get-Batches output was consumed through @(...), which made
+        # the loop run once with ALL batches and space-join them into one giant
+        # filter (prod: one 159,514-char "batched" filter).
+        $script:capturedFilters = New-Object System.Collections.Generic.List[string]
+        Mock -CommandName Get-ADObject -MockWith { $null }
+        Mock -CommandName Get-ADUser -MockWith {
+            @(
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                    CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                    DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+                    objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+                [pscustomobject]@{ SamAccountName='mjones'; DisplayName='Mary Jones'; GivenName='Mary'; sn='Jones'
+                    CN='Mary Jones'; Name='Mary Jones'; UserPrincipalName='mjones@vendor.com'; mail=$null
+                    DistinguishedName='CN=Mary Jones,OU=Vendor,DC=corp,DC=example,DC=com'
+                    objectSid='S-1-5-21-1-2-3-1002'; memberOf=@() }
+            )
+        }
+        Mock -CommandName Get-ADGroup -MockWith { $script:capturedFilters.Add("$LDAPFilter"); @() }
+        $inp = [pscustomobject]@{
+            Users       = @(
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' }
+                [pscustomobject]@{ SamAccountName='mjones'; DisplayName='Mary Jones' }
+            )
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        $script:capturedFilters.Count | Should -BeGreaterThan 0
+        foreach ($f in $script:capturedFilters) {
+            $f | Should -Not -Match '\)\s+\('   # adjacent clauses glued with whitespace
+        }
+        # Both users' member clauses must still be present across the filters.
+        ($script:capturedFilters -join "`n") | Should -Match 'member=CN=John Smith'
+        ($script:capturedFilters -join "`n") | Should -Match 'member=CN=Mary Jones'
+    }
+    It 'skips member resolution for candidates the engine scores None' {
+        # A no-signal parent pulled in by the parent lookup must not cost
+        # member-resolution searches: the engine can never select it.
+        $userDn   = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $childDn  = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $parentDn = 'CN=Big Umbrella,OU=Groups,DC=corp,DC=example,DC=com'
+        $strangerDn = 'CN=Uncached Stranger,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@($parentDn)
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
+            [pscustomobject]@{ Name='Big Umbrella'; DistinguishedName=$parentDn
+                description=''; info=''; managedBy=''; member=@($childDn, $strangerDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        # Child (vendor member -> Low) keeps its member objects...
+        $child = $data.Groups | Where-Object { $_.Name -eq 'Acme Admins' }
+        @($child.MemberDirectoryObjects).Count | Should -Be 1
+        # ...the None-scored umbrella does not, and its unknown member is never fetched.
+        $parent = $data.Groups | Where-Object { $_.Name -eq 'Big Umbrella' }
+        @($parent.MemberDirectoryObjects).Count | Should -Be 0
+        Should -Invoke Get-ADObject -Exactly -Times 0
+    }
+    It 'completes when every candidate group is excluded (engine pre-pass returns nothing)' {
+        # When exclude.csv removes the only candidate, Find-CandidateGroups
+        # returns an empty set that unrolls to $null; the RELATED-LOOKUP
+        # engine pre-pass must not crash walking that as @($null).
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Excluded Group'; DistinguishedName='CN=Excluded Group,OU=Groups,DC=corp,DC=example,DC=com'
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users         = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords      = @()
+            KnownGroups   = @()
+            ExcludeGroups = @([pscustomobject]@{ Domain='corp.example.com'; Identity='Excluded Group' })
+            Domains       = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        { Get-AdDiscoveryData -InputData $inp } | Should -Not -Throw
     }
 }

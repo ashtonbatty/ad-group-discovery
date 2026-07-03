@@ -8,7 +8,7 @@ Vendor AD Group Discovery engine without a live directory.
 | File | What it is |
 |------|------------|
 | `New-DiscoveryFixture.ps1` | Deterministic generator. Re-run to regenerate everything below. |
-| `directory.json` | The simulated directory: 4 domains, 40 users, 24 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdDiscoveryData` would return from a real forest. |
+| `directory.json` | The simulated directory: 4 domains, 40 users, 27 groups (full AD attributes, with consistent DN cross-references). This is what `Get-AdDiscoveryData` would return from a real forest. |
 | `discovery-input/*.csv` | The five discovery-input lists for discovering the **primary vendor (Northwind Traders)**: `users.csv`, `domains.csv`, `keywords.csv`, `known.csv`, `exclude.csv`. |
 | `Import-DiscoveryFixture.ps1` | Loader bridge: turns the JSON + CSVs into a `Get-AdDiscoveryData`-shaped object (`Groups`, `VendorUsers` with `Tokens`, `DnIndex`, …) so the rest of the pipeline runs with no AD and no mocking. |
 | `Show-FixtureDiscovery.ps1` | Runnable demo / smoke test that runs the engine over the fixture and prints the surfaced groups. |
@@ -34,8 +34,9 @@ naming/TLDs and two different group-organisation conventions:
 four domains. Vendor contractors live in `OU=Contractors,OU=Vendors` (structure A)
 or `CN=Users` (structure B); Globex staff in `OU=Staff` / `CN=Users`.
 
-**Groups (24):** 12 Northwind-related, 12 other (Contoso ×3, Fabrikam ×3, Globex ×6 —
-including a built-in-style `Domain Admins` in corp's `CN=Users` container).
+**Groups (27):** 13 Northwind-related, 14 other (Contoso ×3, Fabrikam ×3, Globex ×8 —
+including built-in-style `Domain Admins` and `Administrators` in corp's `CN=Users`
+container).
 
 So **half the users and half the groups belong to the discovered vendor**, as required.
 
@@ -47,7 +48,7 @@ So **half the users and half the groups belong to the discovered vendor**, as re
 
 ### Expected result (the oracle)
 
-Running the engine over this fixture for Northwind surfaces **exactly 13
+Running the engine over this fixture for Northwind surfaces **exactly 15
 groups** and none of the decoys. Each row below is what
 `Show-FixtureDiscovery.ps1` prints:
 
@@ -66,11 +67,14 @@ groups** and none of the decoys. Each row below is what
 | Freight Terminal Access | corp (flat) | **Medium** | **Description-group closure** — description says "Managed by Freight Portal Ops" |
 | Project Atlas Team | corp (flat) | **Confirmed** | In `known.csv` — no automatic signal otherwise |
 | Domain Admins | corp (`CN=Users`) | **Low** | Incidental vendor member (jbrooks) — worth flagging, but its **generic name is not trusted** for description matching (membership is mixed) |
+| Platform Host Admins | corp (vendor OU) | **High** | Vendor owner (kvolkov) + vendor members; nested into built-in Administrators |
+| Administrators | corp (`CN=Users`) | **Medium** | **Nested containment** — holds vendor-owned Platform Host Admins. Its generic name is **not trusted** for description matching |
 
 **Correctly NOT surfaced** (precision): all Contoso, Fabrikam and Globex-only
 groups (e.g. `Contoso Service Desk`, `Fabrikam Plant Ops`, `Globex IT Admins`),
-and — the description-trust regression guard — `SQL Backup Operators`, whose
-description mentions `Domain Admins` but which has no vendor link of its own.
+and the description-trust regression guards `SQL Backup Operators` (description
+mentions `Domain Admins`) and `Workstation Local Rights` (description mentions
+`Administrators`) — both have no vendor link of their own.
 
 **Excluded** (would otherwise surface as Low because they contain Northwind
 members): `All Staff` (apac) and `Globex All Employees` (dmz).

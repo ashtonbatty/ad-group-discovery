@@ -163,4 +163,17 @@ Describe 'Expand-VendorGroupClosure' {
         ($t.Reasons | Where-Object Pattern -eq 'DescriptionGroup').Value | Should -Be 'Finance (EMEA)'
         $t.Confidence | Should -Be 'Medium'
     }
+    It 'does not promote description mentions of a parent trusted only via nested containment' {
+        $child = New-Result 'Acme Ops' 'CN=Acme Ops,DC=c' @() 3 'High'
+        $child.Reasons = @(New-Reason 'Owner' 'jsmith')
+        $parent = New-Result 'Administrators' 'CN=Administrators,CN=Builtin,DC=c' @('CN=Acme Ops,DC=c') 0 'None'
+        $decoy = New-Result 'Print Ops' 'CN=Print Ops,DC=c' @() 0 'None'
+        foreach ($r in @($child, $parent, $decoy)) {
+            $r | Add-Member Description ''; $r | Add-Member Info ''
+        }
+        $decoy.Description = 'Administrators of the print estate.'
+        $out = Expand-VendorGroupClosure -Results @($child, $parent, $decoy)
+        ($out | Where-Object Name -eq 'Administrators').Confidence | Should -Be 'Medium'
+        ($out | Where-Object Name -eq 'Print Ops').Confidence | Should -Be 'None'
+    }
 }

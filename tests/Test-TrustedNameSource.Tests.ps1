@@ -40,4 +40,19 @@ Describe 'Test-TrustedNameSource' {
         $r = New-Candidate 'None' @()
         Test-TrustedNameSource -Result $r -Rank $script:rank | Should -BeFalse
     }
+    It 'does not trust a group whose only non-member signal is nested vendor containment' {
+        # A built-in group ("Administrators") holding one vendor-owned child must
+        # not turn its generic name into a description-search token: in prod that
+        # matched 649 unrelated group descriptions.
+        $r = New-Candidate 'Medium' @(New-Reason 'NestedVendorGroup')
+        Test-TrustedNameSource -Result $r -Rank $script:rank | Should -BeFalse
+    }
+    It 'does not trust nested containment stacked with vendor membership' {
+        $r = New-Candidate 'High' @((New-Reason 'NestedVendorGroup'), (New-Reason 'MemberVendorUser'))
+        Test-TrustedNameSource -Result $r -Rank $script:rank | Should -BeFalse
+    }
+    It 'still trusts a nested parent that also has an independent signal' {
+        $r = New-Candidate 'High' @((New-Reason 'NestedVendorGroup'), (New-Reason 'NameKeyword'))
+        Test-TrustedNameSource -Result $r -Rank $script:rank | Should -BeTrue
+    }
 }

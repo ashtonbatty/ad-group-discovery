@@ -38,8 +38,10 @@ Source is layered by responsibility under `src/`:
 - **`Input/`** — `Read-DiscoveryInput` parses the five input CSVs into one object.
 - **`Ad/`** — `Get-AdDiscoveryData` is the *only* code that touches the live directory; it
   queries each domain, builds vendor-user identity tokens (`ConvertTo-IdentityTokens`) and a
-  DN/SID index (`Resolve-DirectoryIndex`), and returns a plain data object. Everything downstream
-  is pure and AD-free.
+  DN/SID index (`Resolve-DirectoryIndex`), and returns a plain data object. Member display objects
+  are resolved after a global engine pre-pass (`Find-CandidateGroups` + `Expand-VendorGroupClosure`
+  over all domains), in batched `distinguishedName` OR-filter searches, and only for groups the
+  engine keeps (confidence above None or known). Everything downstream is pure and AD-free.
 - **`Engine/`** — the matching pipeline (pure functions). Candidates are found, scored, and
   expanded here.
 - **`Report/`** — `Write-CsvReport`, `Write-HtmlReport`, `Write-ConsoleSummary`, `Write-JsonReport`
@@ -71,7 +73,10 @@ Each group accumulates match *reasons*, which roll up to a confidence band (Low 
 plus **Confirmed** for groups in `known.csv`). Signals: vendor keyword in group name or
 container/OU (strong), `managedBy`/owner is a vendor user (strong), keyword, listed-user sam/email,
 or trusted-group mention in description/info (medium), group contains another vendor group (medium, propagated by
-`Expand-VendorGroupClosure`), vendor user is a direct member (weak, additive). `exclude.csv`
+`Expand-VendorGroupClosure`), vendor user is a direct member (weak, additive). `MemberVendorUser`
+and `NestedVendorGroup` do not by themselves seed description-name trust (see
+`Test-TrustedNameSource`) -- only a non-member-only signal, or membership where every member is a
+vendor user, makes a group's name trusted for downstream description searches. `exclude.csv`
 suppresses groups; `-SecurityGroupsOnly` drops distribution groups; `-MinimumConfidence` filters
 the band. The fixture README (`tests/fixtures/README.md`) documents an exact expected-output
 oracle for every signal — treat it as the behavioral spec when changing the engine.

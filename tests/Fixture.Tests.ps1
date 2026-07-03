@@ -19,12 +19,14 @@ BeforeAll {
         'Freight Portal Ops'        = 'Medium'
         'Freight Terminal Access'   = 'Medium'
         'Domain Admins'             = 'Low'
+        'Platform Host Admins'      = 'High'
+        'Administrators'            = 'Medium'
     }
     $script:absent = @(
         'Contoso Service Desk','Contoso Billing Admins','Contoso EDI Integration',
         'Fabrikam Plant Ops','Fabrikam QA Team','Fabrikam Sensor Net',
         'Globex IT Admins','Globex Helpdesk','All Staff','Globex All Employees',
-        'SQL Backup Operators'
+        'SQL Backup Operators','Workstation Local Rights'
     )
 }
 
@@ -38,7 +40,7 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
         foreach ($r in $sel) { $script:byName[$r.Name] = $r }
     }
 
-    It 'surfaces exactly the 13 expected groups' {
+    It 'surfaces exactly the 15 expected groups' {
         $expected = @($script:expectedBand.Keys | Sort-Object)
         $actual   = @($script:sel.Name | Sort-Object)
         $actual | Should -Be $expected
@@ -107,7 +109,7 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
     It 'MinimumConfidence High keeps Confirmed+High and drops Medium' {
         $high = Invoke-DiscoveryEngine -Groups $script:data.Groups -InputData $script:data.InputData `
             -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex -MinimumConfidence 'High'
-        $high.Count | Should -Be 9
+        $high.Count | Should -Be 10
         $high.Name  | Should -Not -Contain 'Global Logistics Stewards'   # Medium -> dropped
         $high.Name  | Should -Contain 'Project Atlas Team'               # Confirmed -> kept
     }
@@ -117,9 +119,16 @@ Describe 'Fixture: engine pipeline (Northwind discovery)' {
         $s = Invoke-DiscoveryEngine -Groups $secGroups -InputData $script:data.InputData `
             -VendorUsers $script:data.VendorUsers -DnIndex $script:data.DnIndex
 
-        $s.Count | Should -Be 12
+        $s.Count | Should -Be 14
         $s.Name  | Should -Not -Contain 'Northwind Support'
         $s.Name  | Should -Contain 'Northwind Traders Admins'
+    }
+
+    It 'surfaces Administrators via nested containment but not groups that merely mention it' {
+        $g = $script:byName['Administrators']
+        $g.Confidence | Should -Be 'Medium'
+        @($g.Reasons | Where-Object { $_.Pattern -eq 'NestedVendorGroup' }).Value | Should -Contain 'Platform Host Admins'
+        $script:sel.Name | Should -Not -Contain 'Workstation Local Rights'
     }
 }
 
@@ -148,7 +157,7 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 
     It 'writes a CSV with one row per surfaced group' {
-        $script:csvRows.Count | Should -Be 13
+        $script:csvRows.Count | Should -Be 15
     }
 
     It 'records the closure reason in the CSV' {
@@ -218,7 +227,7 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
     It 'writes an interactive JSON payload with one entry per surfaced group' {
         Test-Path (Join-Path $script:outDir 'discovery-data.js')     | Should -BeTrue
         Test-Path (Join-Path $script:outDir 'discovery-report.html') | Should -BeTrue
-        @($script:discovery.groups).Count | Should -Be 13
+        @($script:discovery.groups).Count | Should -Be 15
         $atlas = $script:discovery.groups | Where-Object { $_.name -eq 'Project Atlas Team' }
         $atlas.confidence | Should -Be 'Confirmed'
         # Atlas is Confirmed purely via known.csv with no automatic signal (see
