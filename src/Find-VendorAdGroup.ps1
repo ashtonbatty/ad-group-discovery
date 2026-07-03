@@ -72,9 +72,15 @@ function Find-VendorAdGroup {
     }
     if ($Formats -contains 'Json') {
         Write-JsonReport -Results $selected -Summary $summary -OutputDirectory $OutputDirectory
-        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Report/assets/viewer.html') `
+        $assetRoot = Join-Path $PSScriptRoot 'Report/assets'
+        Copy-Item -LiteralPath (Join-Path $assetRoot 'viewer.html') `
             -Destination (Join-Path $OutputDirectory 'discovery-report.html') -Force
-        Write-DiscoveryLog 'Report: JSON sidecar + interactive viewer written (discovery-report.html)'
+        # The viewer loads Tabulator from sibling files; the report directory must ship as a unit.
+        foreach ($asset in 'tabulator.min.js', 'tabulator.min.css') {
+            Copy-Item -LiteralPath (Join-Path $assetRoot $asset) `
+                -Destination (Join-Path $OutputDirectory $asset) -Force
+        }
+        Write-DiscoveryLog 'Report: JSON sidecar + interactive viewer written (discovery-report.html + Tabulator assets)'
     }
     if ($Formats -contains 'Console') {
         Write-ConsoleSummary -Results $selected -Summary $summary
