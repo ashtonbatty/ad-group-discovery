@@ -19,8 +19,14 @@ function Write-JsonReport {
         }
     }
 
+    function ConvertTo-SafeArray {
+        param($Value)
+        if ($null -eq $Value) { return @() }
+        @($Value)
+    }
+
     $groups = foreach ($r in $Results) {
-        $memberDetails = @($r.MemberDetails)
+        $memberDetails = ConvertTo-SafeArray $r.MemberDetails
         $known  = @($memberDetails | Where-Object { $_.MemberType -eq 'Known' }).Count
         $nested = @($memberDetails | Where-Object { $_.MemberType -eq 'NestedGroup' }).Count
         $other  = @($memberDetails | Where-Object { $_.MemberType -ne 'Known' -and $_.MemberType -ne 'NestedGroup' }).Count
@@ -33,7 +39,7 @@ function Write-JsonReport {
             description       = [string]$r.Description
             info              = [string]$r.Info
             owner             = [string]$r.Owner
-            memberOf          = @(@($r.MemberOfDisplay) | ForEach-Object { [string]$_ })
+            memberOf          = @(ConvertTo-SafeArray $r.MemberOfDisplay | ForEach-Object { [string]$_ })
             groupScope        = [string]$r.GroupScope
             groupCategory     = [string]$r.GroupCategory
             mail              = [string]$r.Mail
@@ -41,7 +47,7 @@ function Write-JsonReport {
             whenCreated       = [string]$r.WhenCreated
             whenChanged       = [string]$r.WhenChanged
             distinguishedName = [string]$r.DistinguishedName
-            reasons           = @(@($r.Reasons) | ForEach-Object { [ordered]@{ pattern = [string]$_.Pattern; value = [string]$_.Value } })
+            reasons           = @(ConvertTo-SafeArray $r.Reasons | ForEach-Object { [ordered]@{ pattern = [string]$_.Pattern; value = [string]$_.Value } })
             memberCounts      = [ordered]@{ known = $known; nested = $nested; other = $other }
             members           = @($memberDetails | ForEach-Object { ConvertTo-MemberObject -Member $_ })
         }
@@ -51,8 +57,8 @@ function Write-JsonReport {
         generatedAt = [string]$Summary.GeneratedAt
         summary     = [ordered]@{
             totalGroups   = $Summary.TotalGroups
-            failedDomains = @(@($Summary.FailedDomains) | ForEach-Object { [string]$_ })
-            warnings      = @(@($Summary.Warnings) | ForEach-Object { [string]$_ })
+            failedDomains = @(ConvertTo-SafeArray $Summary.FailedDomains | ForEach-Object { [string]$_ })
+            warnings      = @(ConvertTo-SafeArray $Summary.Warnings | ForEach-Object { [string]$_ })
         }
         groups = @($groups)
     }
