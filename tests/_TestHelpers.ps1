@@ -57,7 +57,7 @@ if (-not (Get-Command Get-ADUser   -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command Get-ADObject -ErrorAction SilentlyContinue)) {
     function Get-ADObject {
         [CmdletBinding()]
-        param($Identity, [string[]]$Properties, [string]$Server,
+        param($Identity, [string]$LDAPFilter, [string[]]$Properties, [string]$Server,
               [System.Management.Automation.PSCredential]$Credential)
     }
 }

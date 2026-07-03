@@ -406,7 +406,7 @@ Describe 'Get-AdDiscoveryData' {
                 GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
                 whenCreated=$null; whenChanged=$null }
         }
-        Mock -CommandName Get-ADObject -ParameterFilter { $Identity -eq $memberDn } -MockWith {
+        Mock -CommandName Get-ADObject -ParameterFilter { $LDAPFilter -like "*distinguishedName=$memberDn*" } -MockWith {
             [pscustomobject]@{ DistinguishedName=$memberDn; sAMAccountName='bjones'
                 displayName='Bob Jones'; name='Bob Jones'; objectClass=@('top','person','user') }
         }
@@ -422,7 +422,59 @@ Describe 'Get-AdDiscoveryData' {
         $memberObject.SamAccountName | Should -Be 'bjones'
         $memberObject.DisplayName | Should -Be 'Bob Jones'
         $memberObject.ObjectClass | Should -Be 'user'
-        Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $Identity -eq $memberDn }
+        Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $LDAPFilter -like "*distinguishedName=$memberDn*" }
+    }
+    It 'resolves all uncached members of a group in one batched directory search' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $m1 = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
+        $m2 = 'CN=Ann Lee,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($m1, $m2); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADObject -MockWith {
+            @(
+                [pscustomobject]@{ DistinguishedName=$m1; sAMAccountName='bjones'
+                    displayName='Bob Jones'; name='Bob Jones'; objectClass=@('top','person','user') }
+                [pscustomobject]@{ DistinguishedName=$m2; sAMAccountName='alee'
+                    displayName='Ann Lee'; name='Ann Lee'; objectClass=@('top','person','user') }
+            )
+        }
+        $inp = [pscustomobject]@{
+            Users = @(); Keywords = @('Acme'); KnownGroups = @()
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        @($data.Groups[0].MemberDirectoryObjects).Count | Should -Be 2
+        Should -Invoke Get-ADObject -Exactly -Times 1
+    }
+    It 'gives unresolved member DNs an empty-attribute entry instead of dropping them' {
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $gone = 'CN=Ghost User,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($gone); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADObject -MockWith { @() }   # directory returns nothing
+        $inp = [pscustomobject]@{
+            Users = @(); Keywords = @('Acme'); KnownGroups = @()
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        $entry = @($data.Groups[0].MemberDirectoryObjects)[0]
+        $entry.DistinguishedName | Should -Be $gone
+        $entry.SamAccountName | Should -Be ''
+        $entry.ObjectClass | Should -Be ''
     }
     It 'seeds the member cache with fetched vendor users so members are never re-queried' {
         $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
