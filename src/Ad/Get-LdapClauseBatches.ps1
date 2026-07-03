@@ -7,9 +7,10 @@ function Get-LdapClauseBatches {
     #
     # Returns object[] of string[] batches. Callers iterate the result directly
     # (foreach ($batch in Get-LdapClauseBatches ...)); each element is one batch.
-    # NOTE: no ,-wrapping on return -- the pipeline unrolls exactly one level,
-    # emitting each string[] batch as one item. A leading comma here re-creates
-    # the flattening bug this function replaces.
+    # NOTE: no comma-wrapping on return -- the pipeline unrolls exactly one
+    # level, emitting each string[] batch as one item. A ,-wrap combined with
+    # an @()-wrapping caller is what re-created the historical flattening bug;
+    # keep both out.
     [CmdletBinding()]
     param(
         [string[]]$Clauses,

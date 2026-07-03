@@ -313,7 +313,19 @@ function Get-AdDiscoveryData {
                 if (-not $adObject) { continue }
                 $classes = @($adObject.objectClass)
                 $objectClass = if ($classes.Count -gt 0) { [string]$classes[-1] } else { '' }
-                Add-CachedMemberObject -Cache $Cache -DistinguishedName "$($adObject.DistinguishedName)" `
+                $returnedDn = "$($adObject.DistinguishedName)"
+                if (-not $requested.ContainsKey($returnedDn.ToLower())) {
+                    # The DC answered with a DN in a different escaped/formatted
+                    # shape than the group's member value we searched for. It
+                    # still gets cached (under its own key), but the requested
+                    # DN this was meant to answer will fall through to the
+                    # empty-attribute synthesis below and shadow it. Fuzzy DN
+                    # matching isn't attempted here -- just make the mismatch
+                    # observable.
+                    Write-DiscoveryLog -Level DEBUG -Message ("[{0}] member batch search returned a DN that matched none of the requested DNs: {1}" -f `
+                        $Domain, $returnedDn)
+                }
+                Add-CachedMemberObject -Cache $Cache -DistinguishedName $returnedDn `
                     -SamAccountName "$($adObject.sAMAccountName)" -DisplayName "$($adObject.displayName)" `
                     -Name "$($adObject.name)" -ObjectClass $objectClass
             }
@@ -680,6 +692,7 @@ function Get-AdDiscoveryData {
                     -VendorUsers $allVendorUsers -KnownKeys $knownKeys -ExcludeKeys $excludeKeys
                 $engineResults = Expand-VendorGroupClosure -Results $engineResults
                 foreach ($res in @($engineResults)) {
+                    if (-not $res) { continue }
                     if (Test-TrustedNameSource -Result $res -Rank $confidenceRank) {
                         $trustedNameSet[("$($res.Name)".Trim().ToLower())] = $true
                     }

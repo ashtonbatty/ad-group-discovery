@@ -1011,4 +1011,31 @@ Describe 'Get-AdDiscoveryData' {
         @($parent.MemberDirectoryObjects).Count | Should -Be 0
         Should -Invoke Get-ADObject -Exactly -Times 0
     }
+    It 'completes when every candidate group is excluded (engine pre-pass returns nothing)' {
+        # When exclude.csv removes the only candidate, Find-CandidateGroups
+        # returns an empty set that unrolls to $null; the RELATED-LOOKUP
+        # engine pre-pass must not crash walking that as @($null).
+        $userDn = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { @() }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Excluded Group'; DistinguishedName='CN=Excluded Group,OU=Groups,DC=corp,DC=example,DC=com'
+                description=''; info=''; managedBy=''; member=@($userDn); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users         = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords      = @()
+            KnownGroups   = @()
+            ExcludeGroups = @([pscustomobject]@{ Domain='corp.example.com'; Identity='Excluded Group' })
+            Domains       = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        { Get-AdDiscoveryData -InputData $inp } | Should -Not -Throw
+    }
 }
