@@ -827,4 +827,57 @@ Describe 'Get-AdDiscoveryData' {
             $LDAPFilter -like '*description=*IT**'
         }
     }
+    It 'does not issue a description search for a built-in name trusted only via nested vendor containment' {
+        # Administrators holds one vendor-OWNED child (Owner reason -> High).
+        # The parent gains NestedVendorGroup (Medium) and must surface, but its
+        # generic name must NOT become an LDAP description-search token.
+        $userDn  = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+        $childDn = 'CN=Acme Host Ops,OU=Groups,DC=corp,DC=example,DC=com'
+        $adminDn = 'CN=Administrators,CN=Builtin,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADObject -MockWith { $null }
+        Mock -CommandName Get-ADUser -MockWith {
+            [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                DistinguishedName=$userDn; objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$userDn*" } -MockWith {
+            [pscustomobject]@{ Name='Acme Host Ops'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=$userDn; GroupScope='Global'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like "*member=$childDn*" } -MockWith {
+            [pscustomobject]@{ Name='Administrators'; DistinguishedName=$adminDn
+                description=''; info=''; managedBy=''; GroupScope='DomainLocal'; GroupCategory='Security' }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $childDn } -MockWith {
+            [pscustomobject]@{ Name='Acme Host Ops'; DistinguishedName=$childDn
+                description=''; info=''; managedBy=$userDn; member=@($userDn); memberof=@($adminDn)
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $Identity -eq $adminDn } -MockWith {
+            [pscustomobject]@{ Name='Administrators'; DistinguishedName=$adminDn
+                description=''; info=''; managedBy=''
+                member=@($childDn, 'CN=Jane Roe,OU=Staff,DC=corp,DC=example,DC=com'); memberof=@()
+                GroupScope='DomainLocal'; GroupCategory='Security'; mail=$null; adminCount=1
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        $inp = [pscustomobject]@{
+            Users       = @([pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' })
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+
+        $data = Get-AdDiscoveryData -InputData $inp
+        $data.Groups.Name | Should -Contain 'Administrators'   # still a candidate for the report
+        Should -Invoke Get-ADGroup -Exactly -Times 0 -ParameterFilter {
+            $LDAPFilter -like '*description=*Administrators**'
+        }
+        # The vendor-owned child's own name has independent evidence (Owner) and
+        # stays a trusted description token.
+        Should -Invoke Get-ADGroup -Exactly -Times 1 -ParameterFilter {
+            $LDAPFilter -like '*description=*Acme Host Ops**'
+        }
+    }
 }
