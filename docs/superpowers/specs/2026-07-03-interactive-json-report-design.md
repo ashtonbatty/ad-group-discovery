@@ -129,8 +129,23 @@ default: Info, Mail, AdminCount, WhenCreated, WhenChanged, DistinguishedName.
   select dropdown for Confidence/Scope/Category).
 - Confidence sorts by rank (Confirmed > High > Medium > Low), not alphabetically.
 
-**Row detail:** clicking a row expands an inline panel with the full member list
+**Row detail:** clicking a row opens a panel with the full member list
 (name · sam · type · DN), full match-reasons (Pattern → Value chips), Member-Of, Info, and DN.
+
+> **As built (deviations from this spec):**
+> - Row detail is a right-side **drawer**, not an inline expandable row — inline row-height
+>   changes fight Tabulator's virtual DOM under grouping/sort; a drawer is robust and keeps the
+>   grid uncluttered (the spec's stated goal).
+> - **Scope** and **Category** are two separate columns (each with its own list filter/sort)
+>   rather than one combined "Scope/Category" cell — better filtering UX.
+> - Confidence group ordering (Confirmed → High → Medium → Low) is enforced with Tabulator
+>   `setGroupValues`; collapse/expand-all wrap the loop in `blockRedraw`/`restoreRedraw`.
+> - The viewer's CSV export is hardened against formula injection (mirrors `Protect-CsvCell`),
+>   since it is a new CSV-producing surface over attacker-influenceable data.
+> - The client tolerates Windows PowerShell 5.1 `ConvertTo-Json` collapsing a single-element
+>   array to a bare object/scalar (wraps lone values back into arrays), so single-result runs
+>   render correctly.
+> - Library: Tabulator 6.5.2, inlined.
 
 **Empty/error state:** if `window.__DISCOVERY__` is undefined (data.js missing / not beside the
 HTML), show a friendly message plus a drag-drop / file-picker so the user can point at a

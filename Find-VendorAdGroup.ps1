@@ -16,7 +16,7 @@ param(
     [Parameter(Mandatory)][string]$KnownGroupsCsv,
     [Parameter(Mandatory)][string]$ExcludeGroupsCsv,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('Csv','Html','Console')][string[]]$Formats,
+    [ValidateSet('Csv','Html','Console','Json')][string[]]$Formats,
     [System.Management.Automation.PSCredential]$Credential,
     [hashtable]$DomainCredentials,
     [switch]$SecurityGroupsOnly,

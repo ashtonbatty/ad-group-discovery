@@ -31,7 +31,7 @@ confidence-scored match reasons.
     -ExcludeGroupsCsv samples/exclude.csv -OutputDirectory ./out
 ```
 
-Options: `-Formats Csv,Html,Console`, `-Credential`, `-DomainCredentials`,
+Options: `-Formats Csv,Html,Console,Json`, `-Credential`, `-DomainCredentials`,
 `-SecurityGroupsOnly`, `-MinimumConfidence Low|Medium|High|Confirmed`.
 
 ## Per-domain credentials
@@ -90,6 +90,12 @@ Members flagged with a leading `*` in HTML/console reports are vendor users.
   the same `Domain\Name`, with member type, `SamAccountName`, display name, and DN
 - `vendor-group-discovery.html` — grouped by domain and confidence, reasons highlighted
 - Console summary — counts per domain / band / reason, plus failed domains
+- `Json` format (one of the default `-Formats`) — `discovery-data.js` + `discovery-data.json`
+  (the same payload, as a script tag and as plain JSON) plus a self-contained
+  `discovery-report.html` interactive viewer: sort, filter, group-by, collapse,
+  full-text search, column show/hide, row detail, and CSV export. Double-click
+  `discovery-report.html` to open it — no server needed. Its CSV export is hardened
+  against formula injection like the pipeline CSVs.
 
 Report cells are hardened against CSV formula injection and HTML is escaped against
 XSS, since group metadata can contain attacker-influenceable values.

@@ -7,7 +7,7 @@ function Find-VendorAdGroup {
         [Parameter(Mandatory)][string]$KnownGroupsCsv,
         [Parameter(Mandatory)][string]$ExcludeGroupsCsv,
         [Parameter(Mandatory)][string]$OutputDirectory,
-        [ValidateSet('Csv','Html','Console')][string[]]$Formats = @('Csv','Html','Console'),
+        [ValidateSet('Csv','Html','Console','Json')][string[]]$Formats = @('Csv','Html','Console','Json'),
         [System.Management.Automation.PSCredential]$Credential,
         [hashtable]$DomainCredentials,
         [switch]$SecurityGroupsOnly,
@@ -59,6 +59,11 @@ function Find-VendorAdGroup {
     }
     if ($Formats -contains 'Html') {
         Write-HtmlReport -Results $selected -Summary $summary -Path (Join-Path $OutputDirectory 'vendor-group-discovery.html')
+    }
+    if ($Formats -contains 'Json') {
+        Write-JsonReport -Results $selected -Summary $summary -OutputDirectory $OutputDirectory
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Report/assets/viewer.html') `
+            -Destination (Join-Path $OutputDirectory 'discovery-report.html') -Force
     }
     if ($Formats -contains 'Console') {
         Write-ConsoleSummary -Results $selected -Summary $summary
