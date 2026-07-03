@@ -81,4 +81,16 @@ Describe 'Find-VendorAdGroup' {
         $acc = @(Import-Csv (Join-Path $out 'vendor-user-accounts.csv'))
         ($acc | Where-Object UserSamAccountName -eq 'jsmith').Enabled | Should -Be 'True'
     }
+    It 'writes the interactive JSON sidecar and viewer when Json format selected' {
+        $out = Join-Path $tmp 'json-reports'
+        Find-VendorAdGroup -UsersCsv "$tmp/users.csv" -DomainsCsv "$tmp/domains.csv" `
+            -KeywordsCsv "$tmp/keywords.csv" -KnownGroupsCsv "$tmp/known.csv" -ExcludeGroupsCsv "$tmp/exclude.csv" `
+            -OutputDirectory $out -Formats @('Json')
+        Test-Path (Join-Path $out 'discovery-data.js')   | Should -BeTrue
+        Test-Path (Join-Path $out 'discovery-data.json') | Should -BeTrue
+        Test-Path (Join-Path $out 'discovery-report.html') | Should -BeTrue
+        (Get-Content (Join-Path $out 'discovery-data.js') -Raw) | Should -Match 'window\.__DISCOVERY__'
+        $data = Get-Content (Join-Path $out 'discovery-data.json') -Raw | ConvertFrom-Json
+        $data.groups[0].name | Should -Be 'Acme Admins'
+    }
 }
