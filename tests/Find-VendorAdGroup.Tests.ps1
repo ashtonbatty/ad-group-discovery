@@ -89,6 +89,9 @@ Describe 'Find-VendorAdGroup' {
         Test-Path (Join-Path $out 'discovery-data.js')   | Should -BeTrue
         Test-Path (Join-Path $out 'discovery-data.json') | Should -BeTrue
         Test-Path (Join-Path $out 'discovery-report.html') | Should -BeTrue
+        # the viewer loads Tabulator from sibling files, so they must ship with the report
+        Test-Path (Join-Path $out 'tabulator.min.js')  | Should -BeTrue
+        Test-Path (Join-Path $out 'tabulator.min.css') | Should -BeTrue
         (Get-Content (Join-Path $out 'discovery-data.js') -Raw) | Should -Match 'window\.__DISCOVERY__'
         $data = Get-Content (Join-Path $out 'discovery-data.json') -Raw | ConvertFrom-Json
         $data.groups[0].name | Should -Be 'Acme Admins'

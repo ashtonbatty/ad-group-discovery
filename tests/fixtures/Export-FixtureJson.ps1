@@ -34,6 +34,10 @@ $summary = [pscustomobject]@{
 
 if (-not (Test-Path -LiteralPath $OutputDirectory)) { New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null }
 Write-JsonReport -Results $selected -Summary $summary -OutputDirectory $OutputDirectory
-Copy-Item -LiteralPath (Join-Path $root 'src/Report/assets/viewer.html') `
+$assetRoot = Join-Path $root 'src/Report/assets'
+Copy-Item -LiteralPath (Join-Path $assetRoot 'viewer.html') `
     -Destination (Join-Path $OutputDirectory 'discovery-report.html') -Force
+foreach ($asset in 'tabulator.min.js', 'tabulator.min.css') {
+    Copy-Item -LiteralPath (Join-Path $assetRoot $asset) -Destination (Join-Path $OutputDirectory $asset) -Force
+}
 Write-Host ("Wrote interactive report for {0} group(s) to {1}" -f $selected.Count, $OutputDirectory)

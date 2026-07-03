@@ -91,8 +91,10 @@ Members flagged with a leading `*` in HTML/console reports are vendor users.
 - `vendor-group-discovery.html` — grouped by domain and confidence, reasons highlighted
 - Console summary — counts per domain / band / reason, plus failed domains
 - `Json` format (one of the default `-Formats`) — `discovery-data.js` + `discovery-data.json`
-  (the same payload, as a script tag and as plain JSON) plus a self-contained
-  `discovery-report.html` interactive viewer: sort, filter, group-by (including
+  (the same payload, as a script tag and as plain JSON) plus a
+  `discovery-report.html` interactive viewer with `tabulator.min.js` /
+  `tabulator.min.css` siblings (move the report directory as a unit):
+  sort, filter, group-by (including
   by known vendor member, one row per membership), collapse, full-text search,
   column show/hide (a hidden-by-default Member List column shows and filters the
   actual members), row detail, and CSV export (always includes the member list).
