@@ -13,7 +13,7 @@
       * 4 organisations: 3 vendors (Northwind Traders [PRIMARY/discovered], Contoso,
         Fabrikam) and the customer org (Globex, non-vendor).
       * 40 users (20 Northwind, 7 Contoso, 7 Fabrikam, 6 Globex).
-      * 24 groups (12 Northwind-related, 12 other).
+      * 27 groups (13 Northwind-related, 14 other).
       * 2 directory structures:
           - Structure A (corp, emea): vendor groups foldered into per-vendor
             OUs (OU=<Vendor>,OU=Vendors); customer groups in OU=Groups.
@@ -163,6 +163,15 @@ $groupRows = @(
     # Decoy: mentions Domain Admins in its description but has no vendor link;
     # must not surface (regression guard for description-name trust).
     @{ Name='SQL Backup Operators'; Dom='corp'; Cont='GR'; Desc='SQL estate backup job operators. Escalations handled by Domain Admins.'; Owner=''; Members=@('bturner'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Globex' }
+    # Vendor-owned child nested into built-in Administrators (prod regression
+    # scenario): Owner + vendor members -> High, and its name IS trusted.
+    @{ Name='Platform Host Admins'; Dom='corp'; Cont='NW'; Desc='Northwind-managed platform host administration.'; Owner='kvolkov'; Members=@('rsantos','awright'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$true; Mail=$null; Org='Northwind' }
+    # Built-in parent: gains NestedVendorGroup (Medium) from the child above and
+    # must surface, but its generic name must NOT seed description trust.
+    @{ Name='Administrators'; Dom='corp'; Cont='BI'; Desc='Built-in administrators of the domain.'; Owner=''; Members=@('ghunt','amorgan'); MemberGroups=@('Platform Host Admins','Globex IT Admins'); Fsid=@(); Scope='DomainLocal'; Cat='Security'; Admin=$true; Mail=$null; Org='Globex' }
+    # Decoy: description mentions "Administrators" as an exact word but has no
+    # vendor link; must never surface (nested-trust regression guard).
+    @{ Name='Workstation Local Rights'; Dom='corp'; Cont='GR'; Desc='Grants local Administrators rights on managed workstations.'; Owner=''; Members=@('bturner'); MemberGroups=@(); Fsid=@(); Scope='Global'; Cat='Security'; Admin=$false; Mail=$null; Org='Globex' }
 )
 
 function Get-ContainerPath([string]$token) {
