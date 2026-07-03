@@ -42,7 +42,9 @@ Source is layered by responsibility under `src/`:
   is pure and AD-free.
 - **`Engine/`** — the matching pipeline (pure functions). Candidates are found, scored, and
   expanded here.
-- **`Report/`** — `Write-CsvReport`, `Write-HtmlReport`, `Write-ConsoleSummary`.
+- **`Report/`** — `Write-CsvReport`, `Write-HtmlReport`, `Write-ConsoleSummary`, `Write-JsonReport`
+  (emits the `discovery-data.js`/`.json` sidecar payload consumed by the static
+  `src/Report/assets/viewer.html`, an interactive report copied to `discovery-report.html`).
 
 The orchestration pipeline in `Find-VendorAdGroup`:
 
@@ -96,7 +98,9 @@ Tests live in `tests/`, one `*.Tests.ps1` per source function, named after the f
   without a directory.
 - **Report output is security-sensitive.** Group metadata is attacker-influenceable, so CSV cells
   are hardened against formula injection (`Protect-CsvCell`) and HTML is escaped against XSS. Any
-  new report path must preserve this.
+  new report path must preserve this. `src/Report/assets/viewer.html` renders the JSON sidecar
+  client-side and must treat every group/member field as text (DOM text nodes or an escaping
+  helper) — never a `html`-style formatter or `innerHTML` with unescaped data.
 - New engine/report functions get a matching `*.Tests.ps1` and, where they affect end-to-end
   behavior, an assertion in the fixture integration tests.
 - Target Windows PowerShell 5.1 — avoid syntax/cmdlets unavailable in 5.1.

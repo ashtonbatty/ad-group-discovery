@@ -136,13 +136,14 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
             -KeywordsCsv     (Join-Path $inDir 'keywords.csv') `
             -KnownGroupsCsv  (Join-Path $inDir 'known.csv') `
             -ExcludeGroupsCsv (Join-Path $inDir 'exclude.csv') `
-            -OutputDirectory $script:outDir -Formats @('Csv','Html') | Out-Null
+            -OutputDirectory $script:outDir -Formats @('Csv','Html','Json') | Out-Null
 
         $script:csvRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery.csv'))
         $script:memberRows = @(Import-Csv (Join-Path $script:outDir 'vendor-group-discovery-members.csv'))
         $script:html    = Get-Content (Join-Path $script:outDir 'vendor-group-discovery.html') -Raw
         $script:userMemberships = @(Import-Csv (Join-Path $script:outDir 'vendor-user-memberships.csv'))
         $script:userAccounts    = @(Import-Csv (Join-Path $script:outDir 'vendor-user-accounts.csv'))
+        $script:discovery = Get-Content (Join-Path $script:outDir 'discovery-data.json') -Raw | ConvertFrom-Json
     }
     AfterAll { Remove-Item -Recurse -Force $script:outDir -ErrorAction SilentlyContinue }
 
@@ -212,5 +213,18 @@ Describe 'Fixture: public Find-VendorAdGroup (Northwind discovery)' {
         }
         $row | Should -Not -BeNullOrEmpty
         $row.GroupDomain | Should -Be 'dmz.globex.net'
+    }
+
+    It 'writes an interactive JSON payload with one entry per surfaced group' {
+        Test-Path (Join-Path $script:outDir 'discovery-data.js')     | Should -BeTrue
+        Test-Path (Join-Path $script:outDir 'discovery-report.html') | Should -BeTrue
+        @($script:discovery.groups).Count | Should -Be 13
+        $atlas = $script:discovery.groups | Where-Object { $_.name -eq 'Project Atlas Team' }
+        $atlas.confidence | Should -Be 'Confirmed'
+        # Atlas is Confirmed purely via known.csv with no automatic signal (see
+        # tests/fixtures/README.md), so its reasons array is legitimately empty;
+        # assert reasons serialize with content on a group that has them instead.
+        $nta = $script:discovery.groups | Where-Object { $_.name -eq 'Northwind Traders Admins' }
+        @($nta.reasons).Count | Should -BeGreaterThan 0
     }
 }
