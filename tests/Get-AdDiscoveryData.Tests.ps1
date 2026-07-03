@@ -880,4 +880,42 @@ Describe 'Get-AdDiscoveryData' {
             $LDAPFilter -like '*description=*Acme Host Ops**'
         }
     }
+
+    It 'sends every batched OR filter intact - no space-joined clause corruption' {
+        # Regression: Get-Batches output was consumed through @(...), which made
+        # the loop run once with ALL batches and space-join them into one giant
+        # filter (prod: one 159,514-char "batched" filter).
+        $script:capturedFilters = New-Object System.Collections.Generic.List[string]
+        Mock -CommandName Get-ADObject -MockWith { $null }
+        Mock -CommandName Get-ADUser -MockWith {
+            @(
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith'; GivenName='John'; sn='Smith'
+                    CN='John Smith'; Name='John Smith'; UserPrincipalName='jsmith@vendor.com'; mail=$null
+                    DistinguishedName='CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
+                    objectSid='S-1-5-21-1-2-3-1001'; memberOf=@() }
+                [pscustomobject]@{ SamAccountName='mjones'; DisplayName='Mary Jones'; GivenName='Mary'; sn='Jones'
+                    CN='Mary Jones'; Name='Mary Jones'; UserPrincipalName='mjones@vendor.com'; mail=$null
+                    DistinguishedName='CN=Mary Jones,OU=Vendor,DC=corp,DC=example,DC=com'
+                    objectSid='S-1-5-21-1-2-3-1002'; memberOf=@() }
+            )
+        }
+        Mock -CommandName Get-ADGroup -MockWith { $script:capturedFilters.Add("$LDAPFilter"); @() }
+        $inp = [pscustomobject]@{
+            Users       = @(
+                [pscustomobject]@{ SamAccountName='jsmith'; DisplayName='John Smith' }
+                [pscustomobject]@{ SamAccountName='mjones'; DisplayName='Mary Jones' }
+            )
+            Keywords    = @()
+            KnownGroups = @()
+            Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $null = Get-AdDiscoveryData -InputData $inp
+        $script:capturedFilters.Count | Should -BeGreaterThan 0
+        foreach ($f in $script:capturedFilters) {
+            $f | Should -Not -Match '\)\s+\('   # adjacent clauses glued with whitespace
+        }
+        # Both users' member clauses must still be present across the filters.
+        ($script:capturedFilters -join "`n") | Should -Match 'member=CN=John Smith'
+        ($script:capturedFilters -join "`n") | Should -Match 'member=CN=Mary Jones'
+    }
 }
