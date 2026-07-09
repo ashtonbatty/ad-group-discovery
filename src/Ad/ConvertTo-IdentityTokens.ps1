@@ -10,5 +10,10 @@ function ConvertTo-IdentityTokens {
     foreach ($v in @($SamAccountName, $UUserId, $Mail)) {
         if ($v) { $tokens.Add($v) }
     }
-    @($tokens | Where-Object { $_ -and $_.Trim().Length -ge 3 } | Sort-Object -Unique)
+    # Longest-first (ties alphabetical): Get-DescriptionMatchReasons consumes
+    # tokens in array order on the per-group hot path, so the most specific
+    # token (email over sam) must already lead here rather than be re-sorted
+    # once per (group, user) pair.
+    @($tokens | Where-Object { $_ -and $_.Trim().Length -ge 3 } | Sort-Object -Unique |
+        Sort-Object -Property @{ Expression = 'Length'; Descending = $true }, @{ Expression = { $_ } })
 }

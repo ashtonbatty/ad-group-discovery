@@ -4,7 +4,8 @@ function Get-AdDiscoveryData {
         [Parameter(Mandatory)][object]$InputData,
         [System.Management.Automation.PSCredential]$Credential,
         [hashtable]$DomainCredentials,
-        [switch]$SecurityGroupsOnly
+        [switch]$SecurityGroupsOnly,
+        [switch]$ResolveMemberDetails
     )
 
     $groupMetadataProps = @('description','info','managedBy','groupScope',
@@ -391,7 +392,7 @@ function Get-AdDiscoveryData {
     # LDAP round-trip ledger; nested helpers increment it in place so the log can
     # report exactly how much directory work a run cost.
     $queryStats = @{ GroupSearches = 0; OuSearches = 0; UserSearches = 0; IdentityFetches = 0
-                     MemberFetches = 0; MemberSearches = 0; MemberCacheHits = 0 }
+                     MemberFetches = 0; MemberSearches = 0; MemberCacheHits = 0; MemberDerived = 0 }
     $adTimer = [System.Diagnostics.Stopwatch]::StartNew()
     Write-DiscoveryLog ("AD acquisition: {0} domain(s), {1} CSV user(s), {2} keyword(s), {3} known group(s); sam batch {4}" -f `
         @($InputData.Domains).Count, @($InputData.Users).Count, @($InputData.Keywords).Count, `
@@ -806,17 +807,36 @@ function Get-AdDiscoveryData {
         })
         if ($domainRecords.Count -eq 0) { continue }
         $resolveTimer = [System.Diagnostics.Stopwatch]::StartNew()
-        $memberFetchMark  = $queryStats['MemberFetches']
-        $memberSearchMark = $queryStats['MemberSearches']
-        $memberHitMark    = $queryStats['MemberCacheHits']
+        $memberFetchMark   = $queryStats['MemberFetches']
+        $memberSearchMark  = $queryStats['MemberSearches']
+        $memberHitMark     = $queryStats['MemberCacheHits']
+        $memberDerivedMark = $queryStats['MemberDerived']
         $memberDnsToResolve = New-Object System.Collections.Generic.List[string]
         foreach ($rec in $domainRecords) {
             foreach ($m in @($rec.Member)) {
                 if (-not [string]::IsNullOrWhiteSpace($m)) { $memberDnsToResolve.Add($m) }
             }
         }
-        Resolve-AdMemberObjectBatch -Common $ctx.Common -Domain $ctx.Domain `
-            -DistinguishedNames $memberDnsToResolve.ToArray() -Cache $memberObjectCache
+        if ($ResolveMemberDetails) {
+            Resolve-AdMemberObjectBatch -Common $ctx.Common -Domain $ctx.Domain `
+                -DistinguishedNames $memberDnsToResolve.ToArray() -Cache $memberObjectCache
+        } else {
+            # Default: no directory fetches for member display. Members already
+            # cached from earlier queries (vendor users, search-returned groups,
+            # FSP synthetics) keep their full attributes; everything else --
+            # typically non-vendor users -- gets an entry derived from the DN's
+            # leaf CN, with no sam/objectClass. -ResolveMemberDetails restores
+            # the batched Get-ADObject lookups for full member attributes.
+            foreach ($dn in $memberDnsToResolve) {
+                $key = $dn.ToLower()
+                if ($memberObjectCache.ContainsKey($key)) { $queryStats['MemberCacheHits']++; continue }
+                $queryStats['MemberDerived']++
+                $memberObjectCache[$key] = [pscustomobject]@{
+                    DistinguishedName = $dn; SamAccountName = ''; DisplayName = ''
+                    Name = (Get-DnDomainAndName -DistinguishedName $dn).Name; ObjectClass = ''
+                }
+            }
+        }
         $memberRefCount = 0
         foreach ($rec in $domainRecords) {
             $memberDirectoryObjects = New-Object System.Collections.Generic.List[object]
@@ -827,16 +847,18 @@ function Get-AdDiscoveryData {
             }
             $rec.MemberDirectoryObjects = $memberDirectoryObjects.ToArray()
         }
-        Write-DiscoveryLog ("[{0}] resolved members for {1} kept group(s): {2} reference(s) ({3} DN(s) fetched in {4} search(es), {5} cache hits) in {6} ms" -f `
+        Write-DiscoveryLog ("[{0}] resolved members for {1} kept group(s): {2} reference(s) ({3} DN(s) fetched in {4} search(es), {5} DN-derived, {6} cache hits) in {7} ms" -f `
             $ctx.Domain, $domainRecords.Count, $memberRefCount, `
             ($queryStats['MemberFetches'] - $memberFetchMark), ($queryStats['MemberSearches'] - $memberSearchMark), `
-            ($queryStats['MemberCacheHits'] - $memberHitMark), $resolveTimer.ElapsedMilliseconds)
+            ($queryStats['MemberDerived'] - $memberDerivedMark), ($queryStats['MemberCacheHits'] - $memberHitMark), `
+            $resolveTimer.ElapsedMilliseconds)
     }
     Write-DiscoveryLog ("AD acquisition complete in {0:n1} s: {1} group(s), {2} vendor user(s), {3} warning(s), {4} failed domain(s)" -f `
         $adTimer.Elapsed.TotalSeconds, $groupsArr.Count, $usersArr.Count, $warnings.Count, $failedDomains.Count)
-    Write-DiscoveryLog ("LDAP work: {0} group searches, {1} OU searches, {2} user searches, {3} identity fetches, {4} member DN fetches in {5} member searches ({6} member cache hits)" -f `
+    Write-DiscoveryLog ("LDAP work: {0} group searches, {1} OU searches, {2} user searches, {3} identity fetches, {4} member DN fetches in {5} member searches ({6} DN-derived, {7} member cache hits)" -f `
         $queryStats['GroupSearches'], $queryStats['OuSearches'], $queryStats['UserSearches'], `
-        $queryStats['IdentityFetches'], $queryStats['MemberFetches'], $queryStats['MemberSearches'], $queryStats['MemberCacheHits'])
+        $queryStats['IdentityFetches'], $queryStats['MemberFetches'], $queryStats['MemberSearches'], `
+        $queryStats['MemberDerived'], $queryStats['MemberCacheHits'])
     [pscustomobject]@{
         Groups        = $groupsArr
         VendorUsers   = $usersArr

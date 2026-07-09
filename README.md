@@ -32,7 +32,14 @@ confidence-scored match reasons.
 ```
 
 Options: `-Formats Csv,Html,Console,Json`, `-Credential`, `-DomainCredentials`,
-`-SecurityGroupsOnly`, `-MinimumConfidence Low|Medium|High|Confirmed`.
+`-SecurityGroupsOnly`, `-MinimumConfidence Low|Medium|High|Confirmed`,
+`-ResolveMemberDetails`.
+
+By default, members of surfaced groups who are not vendor users or discovered
+groups are shown by the name in their DN (leaf CN) without any extra directory
+lookups — their `SamAccountName` column is blank. Pass `-ResolveMemberDetails`
+to fetch every member's `sAMAccountName`/`displayName`/`objectClass` from the
+directory in batched searches (slower; retrieves details of uninvolved users).
 
 ## Per-domain credentials
 

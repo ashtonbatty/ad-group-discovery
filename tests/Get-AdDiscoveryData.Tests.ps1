@@ -419,7 +419,38 @@ Describe 'Get-AdDiscoveryData' {
         $data.Groups.Name | Should -Contain 'Acme Admins'
         $data.Groups[0].Member | Should -Contain $userDn
     }
-    It 'hydrates direct member directory objects for report shaping' {
+    It 'derives member display from the DN with no directory fetch by default' {
+        # Non-vendor members are display-only; by default their entry is built
+        # from the DN's leaf CN (unescaped) with no Get-ADObject round trips.
+        $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
+        $m1 = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
+        $m2 = 'CN=Smith\, Ann,OU=Staff,DC=corp,DC=example,DC=com'
+        Mock -CommandName Get-ADUser -MockWith { @() }
+        Mock -CommandName Get-ADOrganizationalUnit -MockWith { @() }
+        Mock -CommandName Get-ADGroup -ParameterFilter { $LDAPFilter -like '*name=*Acme**' } -MockWith {
+            [pscustomobject]@{ Name='Acme Admins'; DistinguishedName=$groupDn
+                description=''; info=''; managedBy=''; member=@($m1, $m2); memberof=@()
+                GroupScope='Global'; GroupCategory='Security'; mail=$null; adminCount=$null
+                whenCreated=$null; whenChanged=$null }
+        }
+        Mock -CommandName Get-ADGroup -MockWith { @() }
+        Mock -CommandName Get-ADObject -MockWith { throw 'member fetch must not happen by default' }
+        $inp = [pscustomobject]@{
+            Users = @(); Keywords = @('Acme'); KnownGroups = @()
+            Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
+        }
+        $data = Get-AdDiscoveryData -InputData $inp
+        Should -Invoke Get-ADObject -Exactly -Times 0
+        $objs = @($data.Groups[0].MemberDirectoryObjects)
+        $objs.Count | Should -Be 2
+        $bob = $objs | Where-Object { $_.DistinguishedName -eq $m1 }
+        $bob.Name | Should -Be 'Bob Jones'
+        $bob.SamAccountName | Should -Be ''
+        $bob.ObjectClass | Should -Be ''
+        $ann = $objs | Where-Object { $_.DistinguishedName -eq $m2 }
+        $ann.Name | Should -Be 'Smith, Ann'
+    }
+    It 'hydrates direct member directory objects for report shaping when ResolveMemberDetails is set' {
         $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
         $memberDn = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
         Mock -CommandName Get-ADUser -MockWith { @() }
@@ -445,14 +476,14 @@ Describe 'Get-AdDiscoveryData' {
             KnownGroups = @()
             Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdDiscoveryData -InputData $inp
+        $data = Get-AdDiscoveryData -InputData $inp -ResolveMemberDetails
         $memberObject = $data.Groups[0].MemberDirectoryObjects[0]
         $memberObject.SamAccountName | Should -Be 'bjones'
         $memberObject.DisplayName | Should -Be 'Bob Jones'
         $memberObject.ObjectClass | Should -Be 'user'
         Should -Invoke Get-ADObject -Exactly -Times 1 -ParameterFilter { $LDAPFilter -like "*distinguishedName=$memberDn*" }
     }
-    It 'resolves all uncached members of a group in one batched directory search' {
+    It 'resolves all uncached members in one batched directory search when ResolveMemberDetails is set' {
         $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
         $m1 = 'CN=Bob Jones,OU=Staff,DC=corp,DC=example,DC=com'
         $m2 = 'CN=Ann Lee,OU=Staff,DC=corp,DC=example,DC=com'
@@ -477,11 +508,11 @@ Describe 'Get-AdDiscoveryData' {
             Users = @(); Keywords = @('Acme'); KnownGroups = @()
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdDiscoveryData -InputData $inp
+        $data = Get-AdDiscoveryData -InputData $inp -ResolveMemberDetails
         @($data.Groups[0].MemberDirectoryObjects).Count | Should -Be 2
         Should -Invoke Get-ADObject -Exactly -Times 1
     }
-    It 'gives unresolved member DNs an empty-attribute entry instead of dropping them' {
+    It 'gives unresolved member DNs an empty-attribute entry when ResolveMemberDetails is set' {
         $groupDn = 'CN=Acme Admins,OU=Groups,DC=corp,DC=example,DC=com'
         $gone = 'CN=Ghost User,OU=Staff,DC=corp,DC=example,DC=com'
         Mock -CommandName Get-ADUser -MockWith { @() }
@@ -498,7 +529,7 @@ Describe 'Get-AdDiscoveryData' {
             Users = @(); Keywords = @('Acme'); KnownGroups = @()
             Domains = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdDiscoveryData -InputData $inp
+        $data = Get-AdDiscoveryData -InputData $inp -ResolveMemberDetails
         $entry = @($data.Groups[0].MemberDirectoryObjects)[0]
         $entry.DistinguishedName | Should -Be $gone
         $entry.SamAccountName | Should -Be ''
@@ -998,7 +1029,7 @@ Describe 'Get-AdDiscoveryData' {
         ($script:capturedFilters -join "`n") | Should -Match 'member=CN=John Smith'
         ($script:capturedFilters -join "`n") | Should -Match 'member=CN=Mary Jones'
     }
-    It 'skips member resolution for candidates the engine scores None' {
+    It 'skips member resolution for candidates the engine scores None even when ResolveMemberDetails is set' {
         # A no-signal parent pulled in by the parent lookup must not cost
         # member-resolution searches: the engine can never select it.
         $userDn   = 'CN=John Smith,OU=Vendor,DC=corp,DC=example,DC=com'
@@ -1030,7 +1061,7 @@ Describe 'Get-AdDiscoveryData' {
             KnownGroups = @()
             Domains     = @([pscustomobject]@{ Domain='corp.example.com'; Server='dc1'; Name='Corp' })
         }
-        $data = Get-AdDiscoveryData -InputData $inp
+        $data = Get-AdDiscoveryData -InputData $inp -ResolveMemberDetails
         # Child (vendor member -> Low) keeps its member objects...
         $child = $data.Groups | Where-Object { $_.Name -eq 'Acme Admins' }
         @($child.MemberDirectoryObjects).Count | Should -Be 1

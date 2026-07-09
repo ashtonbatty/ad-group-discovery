@@ -20,6 +20,7 @@ param(
     [System.Management.Automation.PSCredential]$Credential,
     [hashtable]$DomainCredentials,
     [switch]$SecurityGroupsOnly,
+    [switch]$ResolveMemberDetails,
     [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence
 )
 Import-Module (Join-Path $PSScriptRoot 'VendorAdGroupDiscovery.psd1') -Force

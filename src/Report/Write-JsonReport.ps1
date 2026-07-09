@@ -27,9 +27,15 @@ function Write-JsonReport {
 
     $groups = foreach ($r in $Results) {
         $memberDetails = ConvertTo-SafeArray $r.MemberDetails
-        $known  = @($memberDetails | Where-Object { $_.MemberType -eq 'Known' }).Count
-        $nested = @($memberDetails | Where-Object { $_.MemberType -eq 'NestedGroup' }).Count
-        $other  = @($memberDetails | Where-Object { $_.MemberType -ne 'Known' -and $_.MemberType -ne 'NestedGroup' }).Count
+        # Single pass; three Where-Object sweeps here cost ~1 s at prod scale.
+        $known = 0; $nested = 0; $other = 0
+        foreach ($d in $memberDetails) {
+            switch ("$($d.MemberType)") {
+                'Known'       { $known++ }
+                'NestedGroup' { $nested++ }
+                default       { $other++ }
+            }
+        }
         [ordered]@{
             domain            = [string]$r.Domain
             name              = [string]$r.Name

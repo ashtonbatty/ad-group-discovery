@@ -37,11 +37,14 @@ Source is layered by responsibility under `src/`:
 
 - **`Input/`** — `Read-DiscoveryInput` parses the five input CSVs into one object.
 - **`Ad/`** — `Get-AdDiscoveryData` is the *only* code that touches the live directory; it
-  queries each domain, builds vendor-user identity tokens (`ConvertTo-IdentityTokens`) and a
-  DN/SID index (`Resolve-DirectoryIndex`), and returns a plain data object. Member display objects
-  are resolved after a global engine pre-pass (`Find-CandidateGroups` + `Expand-VendorGroupClosure`
-  over all domains), in batched `distinguishedName` OR-filter searches, and only for groups the
-  engine keeps (confidence above None or known). Everything downstream is pure and AD-free.
+  queries each domain, builds vendor-user identity tokens (`ConvertTo-IdentityTokens`, which owns
+  the longest-first token ordering the engine hot path relies on) and a DN/SID index
+  (`Resolve-DirectoryIndex`), and returns a plain data object. Member display objects are built
+  after a global engine pre-pass (`Find-CandidateGroups` + `Expand-VendorGroupClosure` over all
+  domains) and only for groups the engine keeps (confidence above None or known). By default
+  uncached members (non-vendor users) get a DN-derived entry (leaf CN as name, no sam/objectClass,
+  zero LDAP calls); `-ResolveMemberDetails` opts into batched `distinguishedName` OR-filter
+  `Get-ADObject` searches for full attributes. Everything downstream is pure and AD-free.
 - **`Engine/`** — the matching pipeline (pure functions). Candidates are found, scored, and
   expanded here.
 - **`Report/`** — `Write-CsvReport`, `Write-HtmlReport`, `Write-ConsoleSummary`, `Write-JsonReport`

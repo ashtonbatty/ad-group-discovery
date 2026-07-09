@@ -11,6 +11,7 @@ function Find-VendorAdGroup {
         [System.Management.Automation.PSCredential]$Credential,
         [hashtable]$DomainCredentials,
         [switch]$SecurityGroupsOnly,
+        [switch]$ResolveMemberDetails,
         [ValidateSet('Low','Medium','High','Confirmed')][string]$MinimumConfidence = 'Low'
     )
 
@@ -19,8 +20,8 @@ function Find-VendorAdGroup {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
     Initialize-DiscoveryLog -Path (Join-Path $OutputDirectory 'discovery.log')
-    Write-DiscoveryLog ("Run parameters: Formats=[{0}] MinimumConfidence={1} SecurityGroupsOnly={2} OutputDirectory='{3}'" -f `
-        ($Formats -join ','), $MinimumConfidence, [bool]$SecurityGroupsOnly, $OutputDirectory)
+    Write-DiscoveryLog ("Run parameters: Formats=[{0}] MinimumConfidence={1} SecurityGroupsOnly={2} ResolveMemberDetails={3} OutputDirectory='{4}'" -f `
+        ($Formats -join ','), $MinimumConfidence, [bool]$SecurityGroupsOnly, [bool]$ResolveMemberDetails, $OutputDirectory)
 
     $inputData = Read-DiscoveryInput -UsersCsv $UsersCsv -DomainsCsv $DomainsCsv -KeywordsCsv $KeywordsCsv `
         -KnownGroupsCsv $KnownGroupsCsv -ExcludeGroupsCsv $ExcludeGroupsCsv
@@ -29,7 +30,8 @@ function Find-VendorAdGroup {
     $userCount   = @($inputData.Users).Count
     Write-Host "Querying Active Directory ($domainCount domain(s), $userCount vendor user(s))..."
     $data = Get-AdDiscoveryData -InputData $inputData -Credential $Credential `
-        -DomainCredentials $DomainCredentials -SecurityGroupsOnly:$SecurityGroupsOnly
+        -DomainCredentials $DomainCredentials -SecurityGroupsOnly:$SecurityGroupsOnly `
+        -ResolveMemberDetails:$ResolveMemberDetails
 
     $groups = $data.Groups
     if ($SecurityGroupsOnly) { $groups = @($groups | Where-Object { "$($_.GroupCategory)" -eq 'Security' }) }

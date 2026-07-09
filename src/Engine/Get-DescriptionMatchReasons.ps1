@@ -10,11 +10,11 @@ function Get-DescriptionMatchReasons {
         foreach ($u in $VendorUsers) {
             # One reason per user, tagged with the first token that hit. Inline loop
             # (not Test-KeywordMatch) so this per-group/per-user hot path short-circuits
-            # at the first match. Token hygiene (non-blank, >= 3 chars) is owned by
-            # ConvertTo-IdentityTokens.
-            # Prefer the more specific email token when it contains the sam name,
-            # so the recorded reason reflects the owner format that actually hit.
-            foreach ($tok in @($u.Tokens | Sort-Object { $_.Length } -Descending)) {
+            # at the first match. Token hygiene (non-blank, >= 3 chars) and the
+            # longest-first ordering (so the more specific email token wins over a
+            # sam it contains) are owned by ConvertTo-IdentityTokens -- re-sorting
+            # here would put a pipeline Sort-Object inside the (group x user) loop.
+            foreach ($tok in @($u.Tokens)) {
                 if ($text.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                     $reasons.Add([pscustomobject]@{ Pattern = 'DescriptionUser'; Value = "$($u.SamAccountName) ~ $tok" })
                     break

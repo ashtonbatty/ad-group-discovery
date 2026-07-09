@@ -27,4 +27,17 @@ Describe 'Get-DescriptionMatchReasons' {
         $r = @(Get-DescriptionMatchReasons -Description 'jsmith and jsmith@vendor.com' -Info '' -Keywords @() -VendorUsers $users)
         ($r | Where-Object Pattern -eq 'DescriptionUser').Count | Should -Be 1
     }
+    It 'consumes tokens in array order - ordering is the producer''s job, not re-sorted per group' {
+        # Perf contract: no per-(group,user) sort on the hot path. A user whose
+        # tokens arrive shortest-first records the first in-order hit.
+        $u = [pscustomobject]@{ SamAccountName = 'jsmith'; Tokens = @('jsmith', 'jsmith@vendor.com') }
+        $r = @(Get-DescriptionMatchReasons -Description 'Owner: jsmith@vendor.com' -Info '' -Keywords @() -VendorUsers @($u))
+        ($r | Where-Object Pattern -eq 'DescriptionUser').Value | Should -Be 'jsmith ~ jsmith'
+    }
+    It 'records the most specific token end-to-end with ConvertTo-IdentityTokens ordering' {
+        $tokens = ConvertTo-IdentityTokens -SamAccountName 'jsmith' -UUserId 'U12345' -Mail 'jsmith@vendor.com'
+        $u = [pscustomobject]@{ SamAccountName = 'jsmith'; Tokens = $tokens }
+        $r = @(Get-DescriptionMatchReasons -Description 'jsmith and jsmith@vendor.com' -Info '' -Keywords @() -VendorUsers @($u))
+        ($r | Where-Object Pattern -eq 'DescriptionUser').Value | Should -Be 'jsmith ~ jsmith@vendor.com'
+    }
 }
